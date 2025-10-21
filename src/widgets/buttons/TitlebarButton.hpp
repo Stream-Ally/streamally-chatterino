@@ -11,6 +11,7 @@ enum class TitleBarButtonStyle : std::uint8_t {
     Unmaximize,
     Close,
     Settings,
+    StreamAlly
 };
 
 class TitleBarButton : public DimButton

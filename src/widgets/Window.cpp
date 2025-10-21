@@ -231,6 +231,13 @@ void Window::addCustomTitlebarButtons()
     });
     this->userLabel_->setMinimumWidth(20 * scale());
 
+    // StreamAlly
+    this->addTitleBarButton<TitleBarButton>(
+        [this] {
+            QDesktopServices::openUrl(QUrl("https://example.com"));
+        },
+        TitleBarButtonStyle::StreamAlly);
+
     // streamer mode
     this->streamerModeTitlebarIcon_ =
         this->addTitleBarButton<PixmapButton>([this] {
