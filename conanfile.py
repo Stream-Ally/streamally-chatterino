@@ -30,7 +30,7 @@ class Chatterino(ConanFile):
         if self.options.get_safe("with_benchmark", False):
             self.requires("benchmark/1.9.0")
 
-        self.requires("openssl/3.5.2")
+        self.requires("openssl/3.6.0")
 
     def generate(self):
         tc = CMakeToolchain(self)
