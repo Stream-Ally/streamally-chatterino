@@ -14,8 +14,8 @@ namespace chatterino {
 
 struct StreamAllyBadge
 {
-    Emote emote;
-    StreamAllyUser *owners{};
+    EmotePtr emote;
+    std::vector<StreamAllyUser> owners{};
 };
 
 } // namespace chatterino

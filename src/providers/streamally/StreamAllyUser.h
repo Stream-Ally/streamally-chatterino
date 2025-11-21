@@ -12,7 +12,7 @@ namespace chatterino {
 
 struct StreamAllyUser
 {
-    QString streamallyId;
+    QString streamAllyId;
     UserId twitchId;
 };
 

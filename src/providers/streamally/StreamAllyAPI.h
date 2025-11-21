@@ -5,6 +5,7 @@
 #pragma once
 
 #include "common/Aliases.hpp"
+#include "StreamAllyBadge.h"
 
 #include <memory>
 #include <optional>
@@ -16,7 +17,10 @@ using EmotePtr = std::shared_ptr<const Emote>;
 
 class StreamAllyAPI
 {
-    std::unordered_map<>
+    std::vector<StreamAllyBadge> badges;
+
+    // Twitch user ID -> StreamAllBadge index
+    std::unordered_map<UserId, int> usersWithBadge;
 
     void FetchStreamAllyBadges();
 
@@ -29,7 +33,7 @@ public:
     /**
      * Returns the Chatterino badge for the given user
      */
-    std::optional<EmotePtr> getBadge(const UserId &id);
+    std::optional<StreamAllyBadge*> getBadge(const UserId &id);
 };
 
 }

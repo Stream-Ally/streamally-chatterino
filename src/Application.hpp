@@ -38,6 +38,7 @@ class Fonts;
 class Toasts;
 class IChatterinoBadges;
 class ChatterinoBadges;
+class StreamAllyAPI;
 class SeventvPaints;
 class FfzBadges;
 class SeventvBadges;
@@ -91,6 +92,7 @@ public:
     virtual PubSub *getTwitchPubSub() = 0;
     virtual ILogging *getChatLogger() = 0;
     virtual IChatterinoBadges *getChatterinoBadges() = 0;
+    virtual StreamAllyAPI *getStreamAllyAPI() = 0;
     virtual FfzBadges *getFfzBadges() = 0;
     virtual SeventvBadges *getSeventvBadges() = 0;
     virtual IUserDataController *getUserData() = 0;
@@ -176,6 +178,7 @@ private:
     std::unique_ptr<PubSub> twitchPubSub;
     std::unique_ptr<TwitchBadges> twitchBadges;
     std::unique_ptr<ChatterinoBadges> chatterinoBadges;
+    std::unique_ptr<StreamAllyAPI> streamAllyAPI;
     std::unique_ptr<BttvEmotes> bttvEmotes;
     std::unique_ptr<BttvLiveUpdates> bttvLiveUpdates;
     std::unique_ptr<FfzEmotes> ffzEmotes;
@@ -221,6 +224,7 @@ public:
     IChatterinoBadges *getChatterinoBadges() override;
     ImageUploader *getImageUploader() override;
     SeventvAPI *getSeventvAPI() override;
+    StreamAllyAPI *getStreamAllyAPI() override;
 #ifdef CHATTERINO_HAVE_PLUGINS
     PluginController *getPlugins() override;
 #endif
