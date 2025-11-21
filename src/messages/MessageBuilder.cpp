@@ -26,6 +26,7 @@
 #include "providers/seventv/SeventvBadges.hpp"
 #include "providers/seventv/SeventvEmotes.hpp"
 #include "providers/seventv/SeventvPersonalEmotes.hpp"
+#include "providers/streamally/StreamAllyAPI.h"
 #include "providers/twitch/api/Helix.hpp"
 #include "providers/twitch/ChannelPointReward.hpp"
 #include "providers/twitch/TwitchAccount.hpp"
@@ -1630,7 +1631,7 @@ std::pair<MessagePtrMut, HighlightAlert> MessageBuilder::makeIrcMessage(
     builder.appendChatterinoBadges(userID);
     builder.appendFfzBadges(twitchChannel, userID);
     builder.appendSeventvBadges(userID);
-    builder.appendStreamallyBadges();
+    builder.appendStreamallyBadges(userID);
 
     builder.appendUsername(tags, args);
     /*
@@ -2452,8 +2453,9 @@ void MessageBuilder::appendSeventvBadges(const QString &userID)
     }
 }
 
-void MessageBuilder::appendStreamallyBadges()
+void MessageBuilder::appendStreamallyBadges(const QString &userID)
 {
+/*
     auto imageSet = Image::fromUrl(Url(
         "https://cdn.betterttv.net/emote/54fa8fce01e468494b85b53c/1x.webp"));
 
@@ -2467,6 +2469,15 @@ void MessageBuilder::appendStreamallyBadges()
 
     this->emplace<BadgeElement>(std::make_shared<const Emote>(std::move(emote)),
                                 MessageElementFlag::AlwaysShow);
+
+ */
+    auto saBadge = getApp()->getStreamAllyAPI()->getBadge({userID});
+
+    if (saBadge.has_value())
+    {
+        this->emplace<BadgeElement>(saBadge.value()->emote,
+                                MessageElementFlag::AlwaysShow);
+    }
 }
 
 Outcome MessageBuilder::tryAppendCheermote(TextState &state,

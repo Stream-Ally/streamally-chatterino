@@ -40,6 +40,7 @@
 #include "providers/seventv/SeventvEventAPI.hpp"
 #include "providers/seventv/SeventvPaints.hpp"
 #include "providers/seventv/SeventvPersonalEmotes.hpp"
+#include "providers/streamally/StreamAllyAPI.h"
 #include "providers/twitch/ChannelPointReward.hpp"
 #include "providers/twitch/PubSubManager.hpp"
 #include "providers/twitch/PubSubMessages.hpp"
@@ -193,6 +194,7 @@ Application::Application(Settings &_settings, const Paths &paths,
     , twitchPubSub(new PubSub(TWITCH_PUBSUB_URL))
     , twitchBadges(new TwitchBadges)
     , chatterinoBadges(new ChatterinoBadges)
+    , streamAllyAPI(new StreamAllyAPI)
     , bttvEmotes(new BttvEmotes)
     , bttvLiveUpdates(makeBttvLiveUpdates(_settings))
     , ffzEmotes(new FfzEmotes)
@@ -527,6 +529,12 @@ SeventvAPI *Application::getSeventvAPI()
     assert(this->seventvAPI);
 
     return this->seventvAPI.get();
+}
+StreamAllyAPI *Application::getStreamAllyAPI()
+{
+    assert(this->streamAllyAPI);
+
+    return this->streamAllyAPI.get();
 }
 
 #ifdef CHATTERINO_HAVE_PLUGINS
