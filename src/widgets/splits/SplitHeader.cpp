@@ -309,6 +309,14 @@ void SplitHeader::initializeLayout()
                                        },
                                        this);
 
+    // StreamAlly image
+    streamAllyImage_ = new QLabel(this);
+
+    QPixmap saImage(":/streamally/icons8_photo_240.png");
+    streamAllyImage_->setPixmap(saImage);
+    streamAllyImage_->setScaledContents(true);
+
+    // dropdown
     this->dropdownButton_ =
         new DrawnButton(DrawnButton::Symbol::Kebab, {}, this);
 
@@ -323,6 +331,8 @@ void SplitHeader::initializeLayout()
         makeWidget<BaseWidget>([](auto w) {
             w->setScaleIndependentSize(8, 4);
         }),
+        // StreamAlly image
+        this->streamAllyImage_,
         // title
         this->titleLabel_ = makeWidget<Label>([](auto w) {
             w->setSizePolicy(QSizePolicy::MinimumExpanding,
@@ -823,6 +833,7 @@ void SplitHeader::scaleChangedEvent(float scale)
 
     this->setFixedHeight(w);
     this->dropdownButton_->setFixedWidth(w);
+    this->streamAllyImage_->setFixedWidth(w);
     this->moderationButton_->setFixedWidth(w);
     this->chattersButton_->setFixedWidth(w);
 
@@ -924,6 +935,15 @@ void SplitHeader::updateIcons()
         auto moderationMode = this->split_->getModerationMode() &&
                               !getSettings()->moderationActions.empty();
 
+        if (twitchChannel->getName() == "haiset")
+        {
+            this->streamAllyImage_->show();
+        }
+        else
+        {
+            this->streamAllyImage_->hide();
+        }
+
         if (moderationMode)
         {
             this->moderationButton_->setSource({
@@ -961,6 +981,7 @@ void SplitHeader::updateIcons()
     {
         this->moderationButton_->hide();
         this->chattersButton_->hide();
+        this->streamAllyImage_->hide();
     }
 }
 

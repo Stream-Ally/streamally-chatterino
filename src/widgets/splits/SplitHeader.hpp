@@ -77,6 +77,7 @@ private:
 
     // ui
     DrawnButton *dropdownButton_{};
+    QLabel *streamAllyImage_{};
     Label *titleLabel_{};
 
     LabelButton *modeButton_{};

@@ -24,6 +24,7 @@
 #include <boost/foreach.hpp>
 #include <QActionGroup>
 #include <QDebug>
+#include <QDesktopServices>
 #include <QFile>
 #include <QFormLayout>
 #include <QLayout>
@@ -1489,6 +1490,17 @@ void SplitNotebook::addCustomButtons()
     QObject::connect(userBtn, &Button::leftClicked, [this, userBtn] {
         getApp()->getWindows()->showAccountSelectPopup(
             this->mapToGlobal(userBtn->rect().bottomRight()));
+    });
+
+    // StreamAlly dashboard
+    auto *streamAllyBtn = this->addCustomButton<SvgButton>(SvgButton::Src{
+        .dark = ":/streamally/icons8_battery.svg",
+        .light = ":/streamally/icons8_battery.svg",
+    });
+
+    streamAllyBtn->setPadding({0, 0});
+    QObject::connect(streamAllyBtn, &Button::leftClicked, [this, streamAllyBtn] {
+        QDesktopServices::openUrl(QUrl("https://www.streamally.gg/dashboard"));
     });
 
     // updates

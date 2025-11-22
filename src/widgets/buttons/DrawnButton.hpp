@@ -24,6 +24,8 @@ public:
 
         /// kebab menu (3 dots underneath eachother)
         Kebab,
+
+        StreamAlly
     };
 
     struct Options {
