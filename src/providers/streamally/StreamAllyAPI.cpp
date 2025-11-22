@@ -4,11 +4,14 @@
 
 #include "StreamAllyAPI.h"
 
+#include "Application.hpp"
 #include "common/network/NetworkRequest.hpp"
 #include "common/network/NetworkResult.hpp"
-#include "StreamAllyBadge.h"
 #include "messages/Emote.hpp"
 #include "messages/Image.hpp"
+#include "singletons/WindowManager.hpp"
+#include "StreamAllyBadge.h"
+#include "widgets/Window.hpp"
 
 #include <QUrl>
 
@@ -22,6 +25,10 @@ void StreamAllyAPI::FetchStreamAllyBadges()
     NetworkRequest(url)
         .concurrent()
         .onSuccess([this] (NetworkResult result) {
+            // Clear current data
+            badges.clear();
+            usersWithBadge.clear();
+
             auto jsonRoot = result.parseJson();
 
             auto jsonBadges = jsonRoot.value("data").toArray();
@@ -48,8 +55,6 @@ void StreamAllyAPI::FetchStreamAllyBadges()
                     .tooltip = Tooltip{jsonBadgeObj["description"].toString()},
                     .homePage = Url{}
                 };
-
-
 
                 // Load badge's owners
                 std::vector<StreamAllyUser> owners;
@@ -86,9 +91,23 @@ void StreamAllyAPI::FetchStreamAllyBadges()
     .execute();
 }
 
+void StreamAllyAPI::StartFetchTimer()
+{
+    // 3. Initialize the timer
+    _fetchTimer = new QTimer(this);
+
+    // 4. Connect the timeout signal to your slot
+    connect(_fetchTimer, &QTimer::timeout, this, &StreamAllyAPI::FetchStreamAllyBadges);
+
+    // 5. Start the timer (e.g., every 1000ms = 1 second)
+    _fetchTimer->start(1000 * 60 * 15); // 1000 * 60 (minute) * 15 (15 minutes)
+}
+
 StreamAllyAPI::StreamAllyAPI()
 {
     FetchStreamAllyBadges();
+
+    StartFetchTimer();
 }
 
 std::optional<StreamAllyBadge*> StreamAllyAPI::getBadge(const UserId &id)

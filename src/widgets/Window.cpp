@@ -234,7 +234,7 @@ void Window::addCustomTitlebarButtons()
     // StreamAlly
     this->addTitleBarButton<TitleBarButton>(
         [this] {
-            QDesktopServices::openUrl(QUrl("https://example.com"));
+            QDesktopServices::openUrl(QUrl("https://www.streamally.gg/dashboard"));
         },
         TitleBarButtonStyle::StreamAlly);
 

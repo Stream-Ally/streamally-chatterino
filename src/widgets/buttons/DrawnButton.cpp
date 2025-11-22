@@ -60,6 +60,15 @@ void DrawnButton::themeChangedEvent()
             o.foregroundHover = this->theme->messages.textColors.regular;
         }
         break;
+
+        case Symbol::StreamAlly: {
+            o.padding = 2;
+            o.thickness = 0;
+
+            o.foreground = this->theme->messages.textColors.system;
+            o.foregroundHover = this->theme->messages.textColors.regular;
+        }
+            break;
     }
 
     this->invalidateContent();
@@ -155,6 +164,14 @@ void DrawnButton::paintContent(QPainter &painter)
             // NOTE: Technically a misuse of padding
             auto topBox = centerBox.translated(0, -(thickness + padding));
             painter.fillRect(topBox, fg);
+        }
+        break;
+
+        case Symbol::StreamAlly: {
+            QImage img;
+            img.load(":/streamally/icons8_photo_240.png");
+
+            painter.drawImage(this->rect(), img);
         }
         break;
     }
