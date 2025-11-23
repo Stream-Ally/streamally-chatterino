@@ -19,7 +19,7 @@ namespace  chatterino {
 
 void StreamAllyAPI::FetchStreamAllyBadges()
 {
-    static QUrl url("https://streamally-production-f5e33d0e6f8f.herokuapp.com/api/public/badge");
+    static QUrl url("https://streamally-production-f5e33d0e6f8f.herokuapp.com/api/public/extension/badge");
 
     // 18, 36, 54, 72
     NetworkRequest(url)

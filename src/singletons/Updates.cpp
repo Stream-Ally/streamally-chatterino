@@ -27,6 +27,9 @@ using namespace literals;
 
 QString currentBranch()
 {
+    // NOTE: Zatím nechám stable, nebudeme řešit betu
+    return "stable";
+
     return getSettings()->betaUpdates ? "beta" : "stable";
 }
 
