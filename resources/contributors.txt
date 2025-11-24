@@ -9,6 +9,10 @@
 # Make sure to reduce avatar's size as much as possible with tool like pngcrush or optipng (if the file is in png format).
 # Contributor is what we use for someone who has contributed in general (like sent a programming-related PR).
 
+@header StreamAlly
+
+Pietro228 | https://github.com/Pietro228 | :/avatars/PietroSantaPhoto.png
+
 @header Maintainers
 
 fourtf | https://fourtf.com | :/avatars/fourtf.png
