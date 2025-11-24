@@ -223,6 +223,13 @@ void Window::addCustomTitlebarButtons()
 
     initUpdateButton(*update, [] {}, this->signalHolder_);
 
+    // StreamAlly
+    this->addTitleBarButton<TitleBarButton>(
+        [this] {
+            QDesktopServices::openUrl(QUrl("https://www.streamally.gg/dashboard"));
+        },
+        TitleBarButtonStyle::StreamAlly);
+
     // account
     this->userLabel_ = this->addTitleBarLabel([this] {
         getApp()->getWindows()->showAccountSelectPopup(
@@ -230,13 +237,6 @@ void Window::addCustomTitlebarButtons()
                 this->userLabel_->rect().bottomLeft()));
     });
     this->userLabel_->setMinimumWidth(20 * scale());
-
-    // StreamAlly
-    this->addTitleBarButton<TitleBarButton>(
-        [this] {
-            QDesktopServices::openUrl(QUrl("https://www.streamally.gg/dashboard"));
-        },
-        TitleBarButtonStyle::StreamAlly);
 
     // streamer mode
     this->streamerModeTitlebarIcon_ =

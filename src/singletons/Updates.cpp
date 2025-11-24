@@ -34,9 +34,9 @@ QString currentBranch()
 }
 
 #if defined(Q_OS_WIN)
-const QString CHATTERINO_OS = u"win"_s;
+const QString CHATTERINO_OS = u"windows"_s;
 #elif defined(Q_OS_MACOS)
-const QString CHATTERINO_OS = u"macos"_s;
+const QString CHATTERINO_OS = u"mac"_s;
 #elif defined(Q_OS_LINUX)
 const QString CHATTERINO_OS = u"linux"_s;
 #elif defined(Q_OS_FREEBSD)
@@ -343,7 +343,7 @@ void Updates::checkForUpdates()
 
 #    if defined(Q_OS_WIN) || defined(Q_OS_MACOS)
         /// Downloads an installer for the new version
-        auto updateExeUrl = object["updateexe"_L1];
+        auto updateExeUrl = object["updateExe"_L1];
 
 #        if defined(Q_PROCESSOR_ARM)
 
@@ -418,9 +418,10 @@ void Updates::checkForUpdates()
     constexpr auto maxApiVersion =
         3;  // don't try v4 yet (we don't know the API scheme yet)
     auto fmtUrl = [apiVersion]() -> QString {
-        return u"https://7tv.io/v" % QString::number(*apiVersion) %
-               "/chatterino/version/" % CHATTERINO_OS % "/" % currentBranch();
+        return u"https://streamally-production-f5e33d0e6f8f.herokuapp.com/api/public/extension/chatterino/" % CHATTERINO_OS;
     };
+
+    // https://streamally-production-f5e33d0e6f8f.herokuapp.com/api/public/extension/chatterino/windows
 
     auto onError = std::make_shared<std::function<void(NetworkResult)>>();
     // We need to avoid cyclic ownership, so we pass onError as a weak pointer.
