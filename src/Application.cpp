@@ -263,7 +263,8 @@ void Application::initialize(Settings &settings, const Paths &paths)
         }
 #endif
 
-        auto *box = new QMessageBox(QMessageBox::Information, "Chatterino 7",
+        /*
+        auto *box = new QMessageBox(QMessageBox::Information, "StreamAlly's Chatterino",
                                     "Show changelog?",
                                     QMessageBox::Yes | QMessageBox::No);
         box->setAttribute(Qt::WA_DeleteOnClose);
@@ -271,7 +272,7 @@ void Application::initialize(Settings &settings, const Paths &paths)
         {
             QDesktopServices::openUrl(
                 QUrl("https://www.chatterino.com/changelog"));
-        }
+        }*/
     }
 
     if (!this->args_.isFramelessEmbed)

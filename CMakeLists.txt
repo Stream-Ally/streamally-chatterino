@@ -22,10 +22,12 @@ option(USE_PRECOMPILED_HEADERS "Use precompiled headers (Temporarily not support
 option(BUILD_WITH_QT6 "Build with Qt6" On)
 option(BUILD_WITH_LIBNOTIFY "Build with libnotify" ON)
 option(CHATTERINO_GENERATE_COVERAGE "Generate coverage files" OFF)
+
 # We don't use translations, and we don't want qtkeychain to build translations
 option(BUILD_TRANSLATIONS "" OFF)
 option(BUILD_SHARED_LIBS "" OFF)
 option(CHATTERINO_LTO "Enable LTO for all targets" OFF)
+option(CHATTERINO_NO_AVIF_PLUGIN "Disable AVIF plugin" OFF)
 option(CHATTERINO_PLUGINS "Enable ALPHA plugin support in Chatterino" ON)
 option(CHATTERINO_USE_GDI_FONTENGINE "Use the legacy GDI fontengine instead of the new DirectWrite one on Windows (Qt 6.8.0 and later)" ON)
 option(CHATTERINO_ALLOW_PRIVATE_QT_API "Allow uses of Qt's private API - when enabling this, Chatterino must use the EXACT Qt version it was compiled against" OFF)
@@ -47,12 +49,13 @@ endif()
 if(BUILD_TESTS)
     list(APPEND VCPKG_MANIFEST_FEATURES "tests")
 endif()
+
 if(BUILD_BENCHMARKS)
     list(APPEND VCPKG_MANIFEST_FEATURES "benchmarks")
 endif()
 
 project(chatterino
-    VERSION 2.5.4
+    VERSION 0.1.1
     DESCRIPTION "Chat client for twitch.tv"
     HOMEPAGE_URL "https://chatterino.com/"
 )
@@ -75,7 +78,7 @@ else()
     message(STATUS "LTO: Disabled")
 endif()
 
-if (BUILD_WITH_QT6)
+if(BUILD_WITH_QT6)
     set(MAJOR_QT_VERSION "6")
 else()
     message(WARNING "Qt5 is not supported, continue building at your own risk")
@@ -84,38 +87,43 @@ endif()
 
 find_program(CCACHE_PROGRAM ccache)
 find_program(SCCACHE_PROGRAM sccache)
-if (SCCACHE_PROGRAM)
-    set(_compiler_launcher ${SCCACHE_PROGRAM})
-elseif (CCACHE_PROGRAM)
-    set(_compiler_launcher ${CCACHE_PROGRAM})
-endif ()
 
+if(SCCACHE_PROGRAM)
+    set(_compiler_launcher ${SCCACHE_PROGRAM})
+elseif(CCACHE_PROGRAM)
+    set(_compiler_launcher ${CCACHE_PROGRAM})
+endif()
 
 # Alternate linker code taken from heavyai/heavydb
 # https://github.com/heavyai/heavydb/blob/0517d99b467806f6af7b4c969e351368a667497d/CMakeLists.txt#L87-L103
 macro(set_alternate_linker linker)
-  find_program(LINKER_EXECUTABLE ld.${USE_ALTERNATE_LINKER} ${USE_ALTERNATE_LINKER})
-  if(LINKER_EXECUTABLE)
-    if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" AND "${CMAKE_CXX_COMPILER_VERSION}" VERSION_LESS 12.0.0)
-      add_link_options("-ld-path=${USE_ALTERNATE_LINKER}")
+    find_program(LINKER_EXECUTABLE ld.${USE_ALTERNATE_LINKER} ${USE_ALTERNATE_LINKER})
+
+    if(LINKER_EXECUTABLE)
+        if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" AND "${CMAKE_CXX_COMPILER_VERSION}" VERSION_LESS 12.0.0)
+            add_link_options("-ld-path=${USE_ALTERNATE_LINKER}")
+        else()
+            add_link_options("-fuse-ld=${USE_ALTERNATE_LINKER}")
+        endif()
+
+        message(STATUS "Linking with ${USE_ALTERNATE_LINKER}")
     else()
-      add_link_options("-fuse-ld=${USE_ALTERNATE_LINKER}")
+        set(USE_ALTERNATE_LINKER "" CACHE STRING "Use alternate linker" FORCE)
+        message(STATUS "Failed to find alternate linker ${USE_ALTERNATE_LINKER}")
     endif()
-  else()
-    set(USE_ALTERNATE_LINKER "" CACHE STRING "Use alternate linker" FORCE)
-  endif()
 endmacro()
 
 set(USE_ALTERNATE_LINKER "" CACHE STRING "Use alternate linker. Leave empty for system default; alternatives are 'gold', 'lld', 'bfd', 'mold'")
+
 if(NOT "${USE_ALTERNATE_LINKER}" STREQUAL "")
-  set_alternate_linker(${USE_ALTERNATE_LINKER})
+    set_alternate_linker(${USE_ALTERNATE_LINKER})
 endif()
 
-if (_compiler_launcher)
+if(_compiler_launcher)
     set(CMAKE_CXX_COMPILER_LAUNCHER "${_compiler_launcher}" CACHE STRING "CXX compiler launcher")
     message(STATUS "Using ${_compiler_launcher} for speeding up build")
 
-    if (MSVC)
+    if(MSVC)
         # /Zi can't be used with (s)ccache
         # Use /Z7 instead (debug info in object files)
         if(CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -138,7 +146,9 @@ find_package(Qt${MAJOR_QT_VERSION} REQUIRED
     Network
     Svg
     Concurrent
-    )
+)
+
+find_package(Qt${MAJOR_QT_VERSION} COMPONENTS WidgetsPrivate)
 if(CHATTERINO_ALLOW_PRIVATE_QT_API)
     # Only exists since 6.10 and prints a warning regarding private headers
     find_package(Qt${MAJOR_QT_VERSION} COMPONENTS GuiPrivate)
@@ -146,9 +156,9 @@ endif()
 
 message(STATUS "Qt version: ${Qt${MAJOR_QT_VERSION}_VERSION}")
 
-if (WIN32)
+if(WIN32)
     add_subdirectory(lib/WinToast EXCLUDE_FROM_ALL)
-endif ()
+endif()
 
 # Find boost on the system
 find_package(Boost REQUIRED CONFIG OPTIONAL_COMPONENTS headers)
@@ -160,24 +170,26 @@ find_package(Threads REQUIRED)
 
 find_library(LIBRT rt)
 
-if (USE_SYSTEM_LIBCOMMUNI)
+if(USE_SYSTEM_LIBCOMMUNI)
     find_package(LibCommuni REQUIRED)
 else()
     set(LIBCOMMUNI_ROOT_LIB_FOLDER "${CMAKE_SOURCE_DIR}/lib/libcommuni")
-    if (NOT EXISTS "${LIBCOMMUNI_ROOT_LIB_FOLDER}/CMakeLists.txt")
+
+    if(NOT EXISTS "${LIBCOMMUNI_ROOT_LIB_FOLDER}/CMakeLists.txt")
         message(FATAL_ERROR "Submodules probably not loaded, unable to find lib/libcommuni/CMakeLists.txt")
     endif()
 
     add_subdirectory("${LIBCOMMUNI_ROOT_LIB_FOLDER}" EXCLUDE_FROM_ALL)
 endif()
 
-if (BUILD_WITH_QTKEYCHAIN)
+if(BUILD_WITH_QTKEYCHAIN)
     # Link QtKeychain statically
-    if (USE_SYSTEM_QTKEYCHAIN)
+    if(USE_SYSTEM_QTKEYCHAIN)
         find_package(Qt${MAJOR_QT_VERSION}Keychain REQUIRED)
     else()
         set(QTKEYCHAIN_ROOT_LIB_FOLDER "${CMAKE_SOURCE_DIR}/lib/qtkeychain")
-        if (NOT EXISTS "${QTKEYCHAIN_ROOT_LIB_FOLDER}/CMakeLists.txt")
+
+        if(NOT EXISTS "${QTKEYCHAIN_ROOT_LIB_FOLDER}/CMakeLists.txt")
             message(FATAL_ERROR "Submodules probably not loaded, unable to find lib/qtkeychain/CMakeLists.txt")
         endif()
 
@@ -186,10 +198,11 @@ if (BUILD_WITH_QTKEYCHAIN)
         add_subdirectory("${QTKEYCHAIN_ROOT_LIB_FOLDER}" EXCLUDE_FROM_ALL)
         set(BUILD_TESTING ${_prev_testing})
 
-        if (NOT TARGET qt${MAJOR_QT_VERSION}keychain)
+        if(NOT TARGET qt${MAJOR_QT_VERSION}keychain)
             message(FATAL_ERROR "qt${MAJOR_QT_VERSION}keychain target was not created :@")
         endif()
-        if (MSVC AND "${MAJOR_QT_VERSION}" STREQUAL "5")
+
+        if(MSVC AND "${MAJOR_QT_VERSION}" STREQUAL "5")
             target_compile_definitions(qt5keychain PRIVATE UNICODE)
             target_compile_options(qt5keychain PRIVATE /utf-8)
             set_target_properties(qt5keychain PROPERTIES CXX_STANDARD 17)
@@ -199,8 +212,9 @@ endif()
 
 find_package(Websocketpp REQUIRED)
 
-if (BUILD_TESTS)
+if(BUILD_TESTS)
     include(GoogleTest)
+
     # For MSVC: Prevent overriding the parent project's compiler/linker settings
     # See https://github.com/google/googletest/blob/main/googletest/README.md#visual-studio-dynamic-vs-static-runtimes
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
@@ -208,21 +222,21 @@ if (BUILD_TESTS)
     add_subdirectory("${CMAKE_CURRENT_LIST_DIR}/lib/googletest" "lib/googletest")
 
     mark_as_advanced(
-            BUILD_GMOCK BUILD_GTEST BUILD_SHARED_LIBS
-            gmock_build_tests gtest_build_samples gtest_build_tests
-            gtest_disable_pthreads gtest_force_shared_crt gtest_hide_internal_symbols
+        BUILD_GMOCK BUILD_GTEST BUILD_SHARED_LIBS
+        gmock_build_tests gtest_build_samples gtest_build_tests
+        gtest_disable_pthreads gtest_force_shared_crt gtest_hide_internal_symbols
     )
 
     set_target_properties(gtest PROPERTIES FOLDER lib)
     set_target_properties(gtest_main PROPERTIES FOLDER lib)
     set_target_properties(gmock PROPERTIES FOLDER lib)
     set_target_properties(gmock_main PROPERTIES FOLDER lib)
-endif ()
+endif()
 
-if (BUILD_BENCHMARKS)
+if(BUILD_BENCHMARKS)
     # Include system benchmark (Google Benchmark)
     find_package(benchmark REQUIRED)
-endif ()
+endif()
 
 FetchContent_Declare(
     RapidJSON
@@ -263,8 +277,17 @@ if (CHATTERINO_PLUGINS)
     find_package(Sol2 REQUIRED)
 endif()
 
-if (BUILD_WITH_CRASHPAD)
+if(BUILD_WITH_CRASHPAD)
     add_subdirectory("${CMAKE_SOURCE_DIR}/tools/crash-handler")
+endif()
+
+if(NOT CHATTERINO_NO_AVIF_PLUGIN)
+    include(${CMAKE_SOURCE_DIR}/cmake/AVIF.cmake)
+endif()
+
+if(libavif_FOUND AND NOT CHATTERINO_NO_AVIF_PLUGIN)
+    message(STATUS "Adding AVIF plugin")
+    set(CHATTERINO_WITH_AVIF_PLUGIN ON)
 endif()
 
 add_subdirectory(lib/twitch-eventsub-ws)
@@ -273,11 +296,11 @@ add_subdirectory(lib/twitch-eventsub-ws)
 # compilation in CMake is a more involved, as documented in https://stackoverflow.com/q/24292898.
 # For CI runs, however, the date of build file generation should be consistent with the date of
 # compilation so this approximation is "good enough" for our purpose.
-if (DEFINED ENV{CHATTERINO_SKIP_DATE_GEN})
+if(DEFINED ENV{CHATTERINO_SKIP_DATE_GEN})
     set(cmake_gen_date "1970-01-01")
-else ()
+else()
     string(TIMESTAMP cmake_gen_date "%Y-%m-%d")
-endif ()
+endif()
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -287,17 +310,17 @@ include(cmake/resources/generate_resources.cmake)
 
 add_subdirectory(src)
 
-if (BUILD_TESTS OR BUILD_BENCHMARKS)
+if(BUILD_TESTS OR BUILD_BENCHMARKS)
     add_subdirectory(mocks)
-endif ()
+endif()
 
-if (BUILD_TESTS)
+if(BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
-endif ()
+endif()
 
-if (BUILD_BENCHMARKS)
+if(BUILD_BENCHMARKS)
     add_subdirectory(benchmarks)
-endif ()
+endif()
 
 feature_summary(WHAT ALL)

@@ -1643,10 +1643,10 @@ std::pair<MessagePtrMut, HighlightAlert> MessageBuilder::makeIrcMessage(
 
     builder.appendTwitchBadges(tags, twitchChannel);
 
+    builder.appendStreamallyBadges(userID);
     builder.appendChatterinoBadges(userID);
     builder.appendFfzBadges(twitchChannel, userID);
     builder.appendSeventvBadges(userID);
-    builder.appendStreamallyBadges(userID);
 
     builder.appendUsername(tags, args);
     /*

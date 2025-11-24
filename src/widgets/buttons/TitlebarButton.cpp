@@ -100,30 +100,11 @@ void TitleBarButton::paintContent(QPainter &painter)
             break;
         }
         case TitleBarButtonStyle::StreamAlly: {
-            painter.setPen(color);
-            color = "#999";
-            painter.setRenderHint(QPainter::Antialiasing);
-            painter.save();
-            painter.translate(3, 3);
-            auto a = xD / 3;
-            QPainterPath path;
-            path.moveTo(4 * a, a);
-            path.lineTo(7 * a, 3 * a);
-            path.lineTo(5 * a, 3 * a);
-            path.lineTo(8 * a, 6 * a);
-            path.lineTo(6 * a, 6 * a);
-            path.lineTo(3 * a, 3 * a);
-            path.lineTo(1 * a, 5 * a);
-            path.lineTo(4 * a, 8 * a);
-            path.lineTo(2 * a, 8 * a);
-            path.lineTo(a, 7 * a);
-            path.lineTo(3 * a, 5 * a);
-            path.lineTo(a, 2 * a);
-            path.lineTo(3 * a, 2 * a);
-            path.closeSubpath();
-            painter.strokePath(path, color);
-            painter.fillPath(path, color);
+            QRect saRect(0, 0, this->width(), this->height());
+
+            painter.drawImage(saRect, QImage(":/streamally/StreamAlly_logo.png"));
             painter.restore();
+
             break;
         }
 
