@@ -86,17 +86,6 @@ bool isZeroWidthActive(const QJsonObject &activeEmote)
     return flags.has(SeventvActiveEmoteFlag::ZeroWidth);
 }
 
-/**
-  * This is only an indicator if an emote should be added
-  * as zero-width or not. The user can still overwrite this.
-  */
-bool isZeroWidthRecommended(const QJsonObject &emoteData)
-{
-    auto flags =
-        SeventvEmoteFlags(SeventvEmoteFlag(emoteData.value("flags").toInt()));
-    return flags.has(SeventvEmoteFlag::ZeroWidth);
-}
-
 QString kindToString(SeventvEmoteSetKind kind)
 {
     switch (kind)

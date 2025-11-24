@@ -5,38 +5,59 @@
 // of std::hash for Subscription
 #include "providers/seventv/eventapi/Subscription.hpp"
 
+#include <QPointer>
+
 namespace chatterino {
 class SeventvEventAPI;
-
+class EmoteMap;
 }  // namespace chatterino
 
 namespace chatterino::seventv::eventapi {
 
-class Client : public BasicPubSubClient<Subscription>
+struct Dispatch;
+struct CosmeticCreateDispatch;
+struct EntitlementCreateDeleteDispatch;
+
+class Client : public BasicPubSubClient<Subscription>,
+               std::enable_shared_from_this<Client>
 {
 public:
-    Client(liveupdates::WebsocketClient &websocketClient,
-           liveupdates::WebsocketHandle handle,
+    Client(SeventvEventAPI &manager,
            std::chrono::milliseconds heartbeatInterval);
 
-    void stopImpl() override;
+    void onOpen() /* override */;
+    void onMessage(const QByteArray &msg) /* override */;
 
-    void setHeartbeatInterval(int intervalMs);
-    void handleHeartbeat();
-
-protected:
-    void onConnectionEstablished() override;
+    std::chrono::milliseconds heartbeatInterval() const;
+    void checkHeartbeat();
 
 private:
-    void checkHeartbeat();
+    void handleDispatch(const Dispatch &dispatch);
+
+    void onEmoteSetCreate(const Dispatch &dispatch);
+    void onEmoteSetUpdate(const Dispatch &dispatch);
+    void onUserUpdate(const Dispatch &dispatch);
+    void onCosmeticCreate(const CosmeticCreateDispatch &cosmetic);
+    void onEntitlementCreate(
+        const EntitlementCreateDeleteDispatch &entitlement);
+    void onEntitlementDelete(
+        const EntitlementCreateDeleteDispatch &entitlement);
 
     std::atomic<std::chrono::time_point<std::chrono::steady_clock>>
         lastHeartbeat_;
-    // This will be set once on the welcome message.
-    std::chrono::milliseconds heartbeatInterval_;
-    std::shared_ptr<boost::asio::steady_timer> heartbeatTimer_;
+    std::atomic<std::chrono::milliseconds> heartbeatInterval_;
+    SeventvEventAPI &manager_;
 
-    friend SeventvEventAPI;
+    struct LastPersonalEmoteAssignment {
+        QString userName;
+        QString emoteSetID;
+        std::shared_ptr<const EmoteMap> emoteSet;
+    };
+
+    /// This is a workaround for 7TV sending `CreateEntitlement` before
+    /// `UpdateEmoteSet`. We only upsert emotes when a user gets assigned a
+    /// new emote set, but in this case, we're upserting after updating as well.
+    std::optional<LastPersonalEmoteAssignment> lastPersonalEmoteAssignment_;
 };
 
 }  // namespace chatterino::seventv::eventapi

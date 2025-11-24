@@ -27,7 +27,9 @@ PaintDropShadow PaintDropShadow::scaled(float scale) const
 void PaintDropShadow::apply(QPixmapDropShadowFilter &effect) const
 {
     effect.setOffset({this->xOffset_, this->yOffset_});
-    effect.setBlurRadius(this->radius_);
+    // Multiplied by 3 to match the appearance from the extension.
+    // Best value found through manual testing.
+    effect.setBlurRadius(this->radius_ * 3);
     effect.setColor(this->color_);
 }
 
