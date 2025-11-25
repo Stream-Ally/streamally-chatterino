@@ -2,11 +2,11 @@
 name: Build
 
 on:
-  push:
-    branches:
-      - chatterino7
-      - "bugfix-release/**"
-      - "release/*"
+#  push:
+#    branches:
+#      - chatterino7
+#      - "bugfix-release/**"
+#      - "release/*"
   pull_request:
   workflow_dispatch:
   merge_group:
