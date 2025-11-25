@@ -347,9 +347,9 @@ void Updates::checkForUpdates()
 
 #        if defined(Q_PROCESSOR_ARM)
 
-        if (object["update_arm"_L1].isString())
+        if (object["updateArm"_L1].isString())
         {
-            updateExeUrl = object["update_arm"_L1];
+            updateExeUrl = object["updateArm"_L1];
         }
 
 #        elif defined(Q_PROCESSOR_X86)
@@ -373,12 +373,12 @@ void Updates::checkForUpdates()
 
 #        ifdef Q_OS_WIN
         /// Windows portable
-        auto portableUrl = object["portable_download"];
+        auto portableUrl = object["portableDownload"];
         if (!portableUrl.isString())
         {
             this->setStatus_(SearchFailed);
             qCDebug(chatterinoUpdate)
-                << "error checking version - missing 'portable_download'"
+                << "error checking version - missing 'portableDownload'"
                 << object;
             return;
         }
@@ -386,7 +386,7 @@ void Updates::checkForUpdates()
 #        endif
 
 #    elif defined(Q_OS_LINUX)
-        QJsonValue updateGuide = object.value("updateguide");
+        QJsonValue updateGuide = object.value("updateGuide");
         if (updateGuide.isString())
         {
             this->updateGuideLink_ = updateGuide.toString();
