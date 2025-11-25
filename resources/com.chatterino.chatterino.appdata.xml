@@ -34,8 +34,8 @@
         <binary>chatterino</binary>
     </provides>
     <releases>
-        <release version="1.0.1" date="2025-11-24">
-            <url>https://github.com/Stream-Ally/streamally-chatterino/releases/tag/v1.0.1</url>
+        <release version="1.0.2" date="2025-11-25">
+            <url>https://github.com/Stream-Ally/streamally-chatterino/releases/tag/v1.0.2</url>
         </release>
     </releases>
 </component>
