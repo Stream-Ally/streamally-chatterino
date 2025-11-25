@@ -441,7 +441,7 @@ jobs:
           artifactErrorsFailBuild: true
           artifacts: "release-artifacts/*"
           body: ${{ steps.format-changes.outputs.changelog }}
-          prerelease: true
+          prerelease: false
           name: Nightly Release
           tag: nightly-build
 
