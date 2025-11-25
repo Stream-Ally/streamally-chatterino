@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "StreamAlly's Chatterino"
-#define MyAppVersion "1.0.3"
+#define MyAppVersion "1.0.4"
 #define MyAppPublisher "StreamAlly"
 #define MyAppURL "https://www.chatterino.com"
 #define MyAppExeName "chatterino.exe"
