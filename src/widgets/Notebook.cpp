@@ -1517,7 +1517,7 @@ void SplitNotebook::addCustomButtons()
     // StreamAlly dashboard
     auto *streamAllyBtn = this->addCustomButton<SvgButton>(SvgButton::Src{
         .dark = ":/streamally/StreamAlly_logo.svg",
-        .light = ":/streamally/StreamAlly_logo.svg",
+        .light = ":/streamally/StreamAlly_logo_dark.svg",
     });
 
     streamAllyBtn->setPadding({0, 0});

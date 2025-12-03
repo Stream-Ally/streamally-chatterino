@@ -124,12 +124,39 @@ void Updates::installUpdates()
     }
 
 #ifdef Q_OS_MACOS
+    NetworkRequest(this->updateExe_)
+                .timeout(600000)
+                .followRedirects(true)
+                .onError([this](NetworkResult) {
+                    this->setStatus_(DownloadFailed);
+
+                    QMessageBox *box = new QMessageBox(
+                        QMessageBox::Information, "Chatterino Update",
+                        "Failed to download the update. \n\nTry manually "
+                        "downloading the update.");
+                    box->setAttribute(Qt::WA_DeleteOnClose);
+                    box->exec();
+                })
+                .onSuccess([this](auto result) {
+                    if (result.status() != 200)
+                    {
+                        auto *box = new QMessageBox(
+                            QMessageBox::Information, "Chatterino Update",
+                            QStringLiteral("The update couldn't be downloaded "
+                                           "(Error: %1).")
+                                .arg(result.formatError()));
+                        box->setAttribute(Qt::WA_DeleteOnClose);
+                        box->exec();
+                    }
+
     QMessageBox *box = new QMessageBox(
         QMessageBox::Information, "Chatterino Update",
         "A link will open in your browser. Download and install to update.");
     box->setAttribute(Qt::WA_DeleteOnClose);
     box->open();
     QDesktopServices::openUrl(this->updateExe_);
+                });
+
 #elif defined Q_OS_LINUX
     QMessageBox *box =
         new QMessageBox(QMessageBox::Information, "Chatterino Update",

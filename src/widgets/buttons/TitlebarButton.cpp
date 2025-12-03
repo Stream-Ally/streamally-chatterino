@@ -100,8 +100,8 @@ void TitleBarButton::paintContent(QPainter &painter)
             break;
         }
         case TitleBarButtonStyle::StreamAlly: {
-            int padding = 15;
-            QRect saRect(padding, padding, this->width() - padding, this->height() - padding);
+            int padding = 5;
+            QRect saRect(padding, padding, this->width() - padding * 2.0f, this->height() - padding * 2.0f);
 
             painter.drawImage(saRect, QImage(":/streamally/StreamAlly_logo.png"));
             painter.restore();
