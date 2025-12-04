@@ -3,6 +3,7 @@
 #include "singletons/Theme.hpp"
 
 #include <QPainterPath>
+#include <QSvgRenderer>
 
 namespace chatterino {
 
@@ -103,7 +104,15 @@ void TitleBarButton::paintContent(QPainter &painter)
             int padding = 5;
             QRect saRect(padding, padding, this->width() - padding * 2.0f, this->height() - padding * 2.0f);
 
-            painter.drawImage(saRect, QImage(":/streamally/StreamAlly_logo.png"));
+            if (this->theme->isLightTheme())
+            {
+                painter.drawImage(saRect, QImage(":/streamally/StreamAlly_logo_dark.png"));
+            }
+            else
+            {
+                painter.drawImage(saRect, QImage(":/streamally/StreamAlly_logo.png"));
+            }
+
             painter.restore();
 
             break;
