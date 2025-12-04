@@ -2,6 +2,8 @@
 
 #include "widgets/buttons/DimButton.hpp"
 
+#include <QSvgRenderer>
+
 namespace chatterino {
 
 enum class TitleBarButtonStyle : std::uint8_t {
