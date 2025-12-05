@@ -1,8 +1,25 @@
-![chatterinoLogo](https://user-images.githubusercontent.com/41973452/272541622-52457e89-5f16-4c83-93e7-91866c25b606.png)
-Chatterino7 [![GitHub Actions Build (Windows, Ubuntu, MacOS)](https://github.com/seventv/chatterino7/actions/workflows/build.yml/badge.svg?branch=chatterino7)](https://github.com/SevenTV/chatterino7/actions?query=workflow%3ABuild+branch%3Achatterino7) [![Chocolatey Package](https://img.shields.io/chocolatey/v/chatterino7?include_prereleases)](https://chocolatey.org/packages/chatterino7)
+<img src="./StreamAlly.png" alt="drawing" width="80" style="padding-right: 1em"/> StreamAlly's Chatterino
 ============
 
-Chatterino7 is a fork of Chatterino 2. This fork mainly contains features that aren't accepted into Chatterino 2, most notably 7TV subscriber features.
+StreamAlly's Chatterino is a fork of Chatterino 7. This fork contains support for StreamAlly integration.
+
+### StreamAlly's Chatterino features
+
+- StreamAlly badges
+
+### Downloads
+
+Builds are available in the [Releases](https://github.com/Stream-Ally/streamally-chatterino/releases/latest) section.
+
+### Issues
+
+If you find any issues regarding the StreamAlly integration, please report them in the [Issues](https://github.com/Stream-Ally/streamally-chatterino/issues) section.
+
+### Discord
+
+Join StreamAlly's Discord server: https://discord.gg/5zsbAEdGfB
+
+## Original Chatterino 7 Readme
 
 ### Features of Chatterino7
 
