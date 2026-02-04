@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2018 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #include "widgets/dialogs/UserInfoPopup.hpp"
 
 #include "Application.hpp"
@@ -14,6 +18,9 @@
 #include "messages/Message.hpp"
 #include "messages/MessageBuilder.hpp"
 #include "providers/IvrApi.hpp"
+#include "providers/kick/KickAccount.hpp"
+#include "providers/kick/KickApi.hpp"
+#include "providers/kick/KickChatServer.hpp"
 #include "providers/pronouns/Pronouns.hpp"
 #include "providers/twitch/api/Helix.hpp"
 #include "providers/twitch/TwitchAccount.hpp"
@@ -38,6 +45,7 @@
 #include "widgets/helper/LiveIndicator.hpp"
 #include "widgets/helper/ScalingSpacerItem.hpp"
 #include "widgets/Label.hpp"
+#include "widgets/MarkdownLabel.hpp"
 #include "widgets/Notebook.hpp"
 #include "widgets/Scrollbar.hpp"
 #include "widgets/splits/Split.hpp"
@@ -63,6 +71,11 @@ constexpr QStringView TEXT_UNAVAILABLE = u"(not available)";
 constexpr QStringView TEXT_PRONOUNS = u"Pronouns: %1";
 constexpr QStringView TEXT_UNSPECIFIED = u"(unspecified)";
 constexpr QStringView TEXT_LOADING = u"(loading...)";
+
+constexpr QStringView SEVENTV_TWITCH_USER_API =
+    u"https://7tv.io/v3/users/twitch/%1";
+constexpr QStringView SEVENTV_KICK_USER_API =
+    u"https://7tv.io/v3/users/kick/%1";
 
 using namespace chatterino;
 
@@ -112,7 +125,7 @@ bool checkMessageUserName(const QString &userName, MessagePtr message)
 
 ChannelPtr filterMessages(const QString &userName, ChannelPtr channel)
 {
-    LimitedQueueSnapshot<MessagePtr> snapshot = channel->getMessageSnapshot();
+    std::vector<MessagePtr> snapshot = channel->getMessageSnapshot();
 
     ChannelPtr channelPtr;
     if (channel->isTwitchChannel())
@@ -125,10 +138,8 @@ ChannelPtr filterMessages(const QString &userName, ChannelPtr channel)
             std::make_shared<Channel>(channel->getName(), Channel::Type::None);
     }
 
-    for (size_t i = 0; i < snapshot.size(); i++)
+    for (const auto &message : snapshot)
     {
-        MessagePtr message = snapshot[i];
-
         if (checkMessageUserName(userName, message))
         {
             channelPtr->addMessage(message, MessageContext::Repost);
@@ -148,7 +159,7 @@ int calculateTimeoutDuration(TimeoutButton timeout)
     return timeout.second * durations[timeout.first];
 }
 
-QString hashSevenTVUrl(const QString &url)
+QString hashUrl(const QString &url)
 {
     QByteArray bytes;
 
@@ -296,6 +307,12 @@ UserInfoPopup::UserInfoPopup(bool closeAutomatically, Split *split)
         QObject::connect(
             avatar.getElement(), &Button::clicked,
             [this](Qt::MouseButton button) {
+                if (this->isKick_)
+                {
+                    this->onKickProfilePictureClick(button);
+                    return;
+                }
+
                 switch (button)
                 {
                     case Qt::LeftButton: {
@@ -387,7 +404,8 @@ UserInfoPopup::UserInfoPopup(bool closeAutomatically, Split *split)
                     this->ui_.avatarButton->setPixmap(
                         this->seventvAvatar_->currentPixmap());
                     this->seventvAvatar_->start();
-                    this->ui_.switchAvatars->setText("Show Twitch");
+                    this->ui_.switchAvatars->setText(u"Show " %
+                                                     this->platformName());
                 }
                 this->updateAvatarUrl();
             });
@@ -541,7 +559,8 @@ UserInfoPopup::UserInfoPopup(bool closeAutomatically, Split *split)
         });
     }
 
-    auto notesPreview = layout.emplace<Label>().assign(&ui_.notesPreview);
+    auto notesPreview = layout.emplace<MarkdownLabel>(this, QString())
+                            .assign(&this->ui_.notesPreview);
     notesPreview->setVisible(false);
     notesPreview->setShouldElide(true);
 
@@ -554,26 +573,34 @@ UserInfoPopup::UserInfoPopup(bool closeAutomatically, Split *split)
 
         // We can safely ignore this signal connection since this is a private signal, and
         // we only connect once
-        std::ignore =
-            this->userStateChanged_.connect([this, lineMod, timeout]() mutable {
-                TwitchChannel *twitchChannel = dynamic_cast<TwitchChannel *>(
-                    this->underlyingChannel_.get());
+        std::ignore = this->userStateChanged_.connect([this, lineMod,
+                                                       timeout]() mutable {
+            TwitchChannel *twitchChannel =
+                dynamic_cast<TwitchChannel *>(this->underlyingChannel_.get());
 
-                bool visible = false;
-                if (twitchChannel)
-                {
-                    bool isMyself =
-                        getApp()
-                            ->getAccounts()
-                            ->twitch.getCurrent()
-                            ->getUserName()
-                            .compare(this->userName_, Qt::CaseInsensitive) == 0;
-                    bool hasModRights = twitchChannel->hasModRights();
-                    visible = hasModRights && !isMyself;
-                }
-                lineMod->setVisible(visible);
-                timeout->setVisible(visible);
-            });
+            bool visible = false;
+            if (twitchChannel)
+            {
+                bool isMyself =
+                    getApp()
+                        ->getAccounts()
+                        ->twitch.getCurrent()
+                        ->getUserName()
+                        .compare(this->userName_, Qt::CaseInsensitive) == 0;
+                bool hasModRights = twitchChannel->hasModRights();
+                visible = hasModRights && !isMyself;
+            }
+            else if (auto *kickChannel = dynamic_cast<KickChannel *>(
+                         this->underlyingChannel_.get()))
+            {
+                bool isMyself =
+                    getApp()->getAccounts()->kick.current()->username().compare(
+                        this->userName_, Qt::CaseInsensitive) == 0;
+                visible = kickChannel->hasModRights() && !isMyself;
+            }
+            lineMod->setVisible(visible);
+            timeout->setVisible(visible);
+        });
 
         // We can safely ignore this signal connection since we own the button, and
         // the button will always be destroyed before the UserInfoPopup
@@ -610,7 +637,7 @@ UserInfoPopup::UserInfoPopup(bool closeAutomatically, Split *split)
                     if (this->underlyingChannel_)
                     {
                         QString value = "/timeout " + this->userName_ + " " +
-                                        QString::number(arg);
+                                        QString::number(arg) + 's';
 
                         value = getApp()->getCommands()->execCommand(
                             value, this->underlyingChannel_, false);
@@ -669,7 +696,7 @@ void UserInfoPopup::themeChangedEvent()
 
 void UserInfoPopup::scaleChangedEvent(float /*scale*/)
 {
-    themeChangedEvent();
+    this->themeChangedEvent();
 
     QTimer::singleShot(20, this, [this] {
         auto geo = this->geometry();
@@ -697,6 +724,11 @@ void UserInfoPopup::installEvents()
     QObject::connect(
         this->ui_.block, &QCheckBox::stateChanged,
         [this](int newState) mutable {
+            if (this->isKick_)
+            {
+                return;
+            }
+
             auto currentUser = getApp()->getAccounts()->twitch.getCurrent();
 
             const auto reenableBlockCheckbox = [this] {
@@ -858,12 +890,13 @@ void UserInfoPopup::setData(const QString &name,
     if (isId)
     {
         this->userId_ = name.mid(idPrefix.size());
-        updateNotes();
+        this->updateNotes();
         this->userName_ = "";
     }
     else
     {
         this->userName_ = name;
+        this->kickUserSlug_ = KickApi::slugify(name);
     }
 
     this->channel_ = openingChannel;
@@ -879,11 +912,19 @@ void UserInfoPopup::setData(const QString &name,
 
     this->setWindowTitle(
         TEXT_TITLE.arg(name, this->underlyingChannel_->getName()));
+    this->isKick_ = this->underlyingChannel_->getType() == Channel::Type::Kick;
 
     this->ui_.nameLabel->setText(name);
     this->ui_.nameLabel->setProperty("copy-text", name);
 
-    this->updateUserData();
+    if (this->isKick_)
+    {
+        this->updateKickUserData();
+    }
+    else
+    {
+        this->updateUserData();
+    }
 
     this->userStateChanged_.invoke();
 
@@ -895,7 +936,8 @@ void UserInfoPopup::setData(const QString &name,
 
     auto type = this->channel_->getType();
     if (type == Channel::Type::TwitchLive ||
-        type == Channel::Type::TwitchWhispers || type == Channel::Type::Misc)
+        type == Channel::Type::TwitchWhispers || type == Channel::Type::Misc ||
+        type == Channel::Type::Kick)
     {
         // not a normal twitch channel, the url opened by the button will be invalid, so hide the button
         this->ui_.usercardLabel->hide();
@@ -1019,7 +1061,7 @@ void UserInfoPopup::updateUserData()
         }
         else
         {
-            this->loadAvatar(user);
+            this->loadAvatar(user.id, user.profileImageUrl, false);
         }
 
         getHelix()->getChannelFollowers(
@@ -1198,12 +1240,11 @@ void UserInfoPopup::updateUserData()
     this->ui_.ignoreHighlights->setVisible(!isMyself);
 }
 
-void UserInfoPopup::loadAvatar(const HelixUser &user)
+void UserInfoPopup::loadAvatar(const QString &userID, const QString &pictureURL,
+                               bool isKick)
 {
     auto filename =
-        getApp()->getPaths().cacheDirectory() + "/" +
-        user.profileImageUrl.right(user.profileImageUrl.lastIndexOf('/'))
-            .replace('/', 'a');
+        getApp()->getPaths().cacheDirectory() + "/" + hashUrl(pictureURL);
     QFile cacheFile(filename);
     if (cacheFile.exists())
     {
@@ -1216,7 +1257,8 @@ void UserInfoPopup::loadAvatar(const HelixUser &user)
     }
     else
     {
-        QNetworkRequest req(user.profileImageUrl);
+        QNetworkRequest req(pictureURL);
+        req.setHeader(QNetworkRequest::UserAgentHeader, "Chatterino");
         static auto *manager = new QNetworkAccessManager();
         auto *reply = manager->get(req);
 
@@ -1239,18 +1281,19 @@ void UserInfoPopup::loadAvatar(const HelixUser &user)
                          });
     }
 
-    this->helixAvatarUrl_ = user.profileImageUrl;
+    this->helixAvatarUrl_ = pictureURL;
     this->updateAvatarUrl();
 
     if (getSettings()->displaySevenTVAnimatedProfile)
     {
-        this->loadSevenTVAvatar(user);
+        this->loadSevenTVAvatar(userID, isKick);
     }
 }
 
-void UserInfoPopup::loadSevenTVAvatar(const HelixUser &user)
+void UserInfoPopup::loadSevenTVAvatar(const QString &userID, bool isKick)
 {
-    NetworkRequest(SEVENTV_USER_API.arg(user.id))
+    auto fmt = isKick ? SEVENTV_KICK_USER_API : SEVENTV_TWITCH_USER_API;
+    NetworkRequest(fmt.arg(userID))
         .timeout(20000)
         .onSuccess([this, hack = std::weak_ptr<bool>(this->lifetimeHack_)](
                        const NetworkResult &result) {
@@ -1291,7 +1334,7 @@ void UserInfoPopup::loadSevenTVAvatar(const HelixUser &user)
 
             // We're implementing custom caching here,
             // because we need the cached file path.
-            auto hash = hashSevenTVUrl(url);
+            auto hash = hashUrl(url);
             auto filename = getApp()->getPaths().cacheDirectory() + "/" + hash;
 
             QFile cacheFile(filename);
@@ -1347,7 +1390,7 @@ void UserInfoPopup::setSevenTVAvatar(const QString &filename,
     movie->start();
     this->seventvAvatar_ = movie;
     this->ui_.switchAvatars->show();
-    this->ui_.switchAvatars->setText("Show Twitch");
+    this->ui_.switchAvatars->setText(u"Show " % this->platformName());
     this->isTwitchAvatarShown_ = false;
     this->updateAvatarUrl();
 }
@@ -1384,12 +1427,234 @@ void UserInfoPopup::updateNotes()
         return;
     }
 
-    static QRegularExpression spaceRegex{"\\s+"};
-
-    auto previewText = "Notes: " + userData->notes.replace(spaceRegex, " ");
-
-    this->ui_.notesPreview->setText(previewText);
+    this->ui_.notesPreview->setText(userData->notes);
     this->ui_.notesPreview->setVisible(true);
+}
+
+void UserInfoPopup::updateKickUserData()
+{
+    assert(this->isKick_);
+
+    auto onChannelFetchFailed = [](UserInfoPopup *self) {
+        // this can occur when the account doesn't exist.
+        self->ui_.followerCountLabel->setText(
+            TEXT_FOLLOWERS.arg(TEXT_UNAVAILABLE));
+        self->ui_.createdDateLabel->setText(TEXT_CREATED.arg(TEXT_UNAVAILABLE));
+
+        self->ui_.nameLabel->setText(self->userName_);
+
+        self->ui_.userIDLabel->setText(u"ID " % TEXT_UNAVAILABLE);
+        self->ui_.userIDLabel->setProperty("copy-text",
+                                           TEXT_UNAVAILABLE.toString());
+    };
+    auto onChannelFetched = [](UserInfoPopup *self,
+                               const KickPrivateChannelInfo &channel) {
+        // Correct for when being opened with ID
+        if (self->userName_.isEmpty())
+        {
+            self->userName_ = channel.user.username;
+            self->kickUserSlug_ = channel.slug;
+            self->ui_.nameLabel->setText(channel.user.username);
+
+            // Ensure recent messages are shown
+            self->updateLatestMessages();
+        }
+
+        self->kickUserID_ = channel.user.userID;
+        auto userIDStr = QString::number(self->kickUserID_);
+        self->userId_ = u"kick:" % userIDStr;
+        self->helixAvatarUrl_ = channel.user.profilePictureURL.value_or(
+            u"https://kick.com/img/default-profile-pictures/default-avatar-2.webp"_s);
+        self->updateAvatarUrl();
+        self->updateNotes();
+
+        self->ui_.nameLabel->setText(channel.user.username);
+        self->ui_.nameLabel->setProperty("copy-text", channel.user.username);
+
+        self->setWindowTitle(TEXT_TITLE.arg(
+            channel.user.username, self->underlyingChannel_->getName()));
+        self->ui_.createdDateLabel->setText(TEXT_CREATED.arg(
+            channel.chatroom.createdAt.date().toString(Qt::ISODate)));
+        self->ui_.createdDateLabel->setToolTip(
+            formatLongFriendlyDuration(channel.chatroom.createdAt,
+                                       QDateTime::currentDateTimeUtc()) +
+            u" ago"_s);
+        self->ui_.createdDateLabel->setMouseTracking(true);
+        self->ui_.userIDLabel->setText(TEXT_USER_ID % userIDStr);
+        self->ui_.userIDLabel->setProperty("copy-text", userIDStr);
+
+        if (getApp()->getStreamerMode()->isEnabled() &&
+            getSettings()->streamerModeHideUsercardAvatars)
+        {
+            self->ui_.avatarButton->setPixmap(getResources().streamerMode);
+        }
+        else
+        {
+            self->loadAvatar(userIDStr, self->helixAvatarUrl_, true);
+        }
+
+        self->ui_.followerCountLabel->setText(
+            TEXT_FOLLOWERS.arg(localizeNumbers(channel.followersCount)));
+
+        // get ignoreHighlights state
+        bool isIgnoringHighlights = false;
+        const auto &vector = getSettings()->blacklistedUsers.raw();
+        for (const auto &blockedUser : vector)
+        {
+            if (self->userName_ == blockedUser.getPattern())
+            {
+                isIgnoringHighlights = true;
+                break;
+            }
+        }
+        if (getSettings()->isBlacklistedUser(self->userName_) &&
+            !isIgnoringHighlights)
+        {
+            self->ui_.ignoreHighlights->setToolTip("Name matched by regex");
+        }
+        else
+        {
+            self->ui_.ignoreHighlights->setEnabled(true);
+        }
+        self->ui_.block->setChecked(/*is_ignoring=*/false);
+        self->ui_.block->setEnabled(true);
+        self->ui_.ignoreHighlights->setChecked(isIgnoringHighlights);
+        self->ui_.notesAdd->setEnabled(true);
+    };
+
+    // FIXME: this doesn't support opening by user ID
+
+    KickApi::privateChannelInfo(
+        this->userName_, [self = QPointer(this), onChannelFetched,
+                          onChannelFetchFailed](const auto &res) {
+            if (!self)
+            {
+                return;
+            }
+            if (res)
+            {
+                onChannelFetched(self.get(), *res);
+            }
+            else
+            {
+                qCDebug(chatterinoKick)
+                    << "Channel fetch failed" << res.error();
+                onChannelFetchFailed(self.get());
+            }
+        });
+    KickApi::privateUserInChannelInfo(
+        this->userName_, this->underlyingChannel_->getName(),
+        [self = QPointer(this)](const auto &res) {
+            if (!self || !res)
+            {
+                return;
+            }
+
+            if (res->followingSince)
+            {
+                QString followingSince =
+                    res->followingSince->date().toString(Qt::ISODate);
+                self->ui_.followageLabel->setText("❤ Following since " +
+                                                  followingSince);
+                self->ui_.followageLabel->setToolTip(
+                    formatLongFriendlyDuration(
+                        *res->followingSince, QDateTime::currentDateTimeUtc()) +
+                    u" ago"_s);
+                self->ui_.followageLabel->setMouseTracking(true);
+            }
+
+            if (res->subscriptionMonths)
+            {
+                self->ui_.subageLabel->setText(
+                    QString("★ Subscribed for %2 months")
+                        .arg(*res->subscriptionMonths));
+            }
+        });
+
+    this->ui_.block->setEnabled(false);
+    this->ui_.ignoreHighlights->setEnabled(false);
+    this->ui_.notesAdd->setEnabled(false);
+
+    bool isMyself = false;  // FIXME: kick account
+    this->ui_.block->setVisible(!isMyself);
+    this->ui_.ignoreHighlights->setVisible(!isMyself);
+}
+
+void UserInfoPopup::onKickProfilePictureClick(Qt::MouseButton button)
+{
+    assert(this->isKick_);
+
+    switch (button)
+    {
+        case Qt::LeftButton: {
+            QDesktopServices::openUrl(
+                QUrl("https://kick.com/" + this->kickUserSlug_));
+        }
+        break;
+
+        // largely the same as on Twitch
+        case Qt::RightButton: {
+            if (this->avatarUrl_.isEmpty())
+            {
+                return;
+            }
+
+            auto *menu = new QMenu(this);
+            menu->setAttribute(Qt::WA_DeleteOnClose);
+
+            auto avatarUrl = this->avatarUrl_;
+
+            // add context menu actions
+            menu->addAction("Open avatar in browser", this, [avatarUrl] {
+                QDesktopServices::openUrl(QUrl(avatarUrl));
+            });
+
+            menu->addAction("Copy avatar link", this, [avatarUrl] {
+                crossPlatformCopy(avatarUrl);
+            });
+
+            // we need to assign login name for msvc compilation
+            auto username = this->userName_.toLower();
+            menu->addAction(
+                "Open channel in a new popup window", this, [username] {
+                    auto *app = getApp();
+                    auto *split = app->getWindows()
+                                      ->createWindow(WindowType::Popup, true)
+                                      .getNotebook()
+                                      .getOrAddSelectedPage()
+                                      ->appendNewSplit(false);
+                    split->setChannel(
+                        app->getKickChatServer()->getOrCreate(username));
+                });
+
+            menu->addAction("Open channel in a new tab", this, [username] {
+                SplitContainer *container = getApp()
+                                                ->getWindows()
+                                                ->getMainWindow()
+                                                .getNotebook()
+                                                .addPage(true);
+                auto *split = new Split(container);
+                split->setChannel(
+                    getApp()->getKickChatServer()->getOrCreate(username));
+                container->insertSplit(split);
+            });
+            menu->popup(QCursor::pos());
+            menu->raise();
+        }
+        break;
+
+        default:
+            break;
+    }
+}
+
+QStringView UserInfoPopup::platformName() const
+{
+    if (this->isKick_)
+    {
+        return u"Kick";
+    }
+    return u"Twitch";
 }
 
 //

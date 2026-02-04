@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2018 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #include "util/StreamLink.hpp"
 
 #include "Application.hpp"
@@ -178,7 +182,7 @@ void openStreamlink(const QString &channelURL, const QString &quality,
     }
 }
 
-void openStreamlinkForChannel(const QString &channel)
+void openStreamlinkForChannel(const QString &channel, QStringView prefixURL)
 {
     static const QString INFO_TEMPLATE("Opening %1 in Streamlink ...");
 
@@ -197,7 +201,7 @@ void openStreamlinkForChannel(const QString &channel)
         }
     }
 
-    QString channelURL = "twitch.tv/" + channel;
+    QString channelURL = prefixURL % channel;
 
     auto preferredQuality = getSettings()->preferredQuality.getEnum();
 

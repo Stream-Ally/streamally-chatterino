@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2017 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #include "messages/Image.hpp"
 
 #include "Application.hpp"
@@ -15,12 +19,15 @@
 
 #include <boost/functional/hash.hpp>
 #include <QBuffer>
+#include <QFile>
 #include <QImageReader>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QThreadPool>
 #include <QTimer>
 
+#include <algorithm>
 #include <atomic>
 
 // Duration between each check of every Image instance
@@ -32,7 +39,7 @@ namespace chatterino::detail {
 
 Frames::Frames()
 {
-    DebugCount::increase("images");
+    DebugCount::increase(DebugObject::Image);
 }
 
 Frames::Frames(QList<Frame> &&frames)
@@ -47,15 +54,15 @@ Frames::Frames(QList<Frame> &&frames)
         return;
     }
 
-    DebugCount::increase("images");
+    DebugCount::increase(DebugObject::Image);
     if (!this->empty())
     {
-        DebugCount::increase("loaded images");
+        DebugCount::increase(DebugObject::LoadedImage);
     }
 
     if (this->animated())
     {
-        DebugCount::increase("animated images");
+        DebugCount::increase(DebugObject::AnimatedImage);
 
         this->gifTimerConnection_ =
             app->getEmotes()->getGIFTimer()->signal.connect([this] {
@@ -81,25 +88,25 @@ Frames::Frames(QList<Frame> &&frames)
         this->processOffset();
     }
 
-    DebugCount::increase("image bytes", this->memoryUsage());
-    DebugCount::increase("image bytes (ever loaded)", this->memoryUsage());
+    DebugCount::increase(DebugObject::BytesImageCurrent, this->memoryUsage());
+    DebugCount::increase(DebugObject::BytesImageLoaded, this->memoryUsage());
 }
 
 Frames::~Frames()
 {
     assertInGuiThread();
-    DebugCount::decrease("images");
+    DebugCount::decrease(DebugObject::Image);
     if (!this->empty())
     {
-        DebugCount::decrease("loaded images");
+        DebugCount::decrease(DebugObject::LoadedImage);
     }
 
     if (this->animated())
     {
-        DebugCount::decrease("animated images");
+        DebugCount::decrease(DebugObject::AnimatedImage);
     }
-    DebugCount::decrease("image bytes", this->memoryUsage());
-    DebugCount::increase("image bytes (ever unloaded)", this->memoryUsage());
+    DebugCount::decrease(DebugObject::BytesImageCurrent, this->memoryUsage());
+    DebugCount::increase(DebugObject::BytesImageUnloaded, this->memoryUsage());
 
     this->gifTimerConnection_.disconnect();
 }
@@ -152,10 +159,10 @@ void Frames::clear()
     assertInGuiThread();
     if (!this->empty())
     {
-        DebugCount::decrease("loaded images");
+        DebugCount::decrease(DebugObject::LoadedImage);
     }
-    DebugCount::decrease("image bytes", this->memoryUsage());
-    DebugCount::increase("image bytes (ever unloaded)", this->memoryUsage());
+    DebugCount::decrease(DebugObject::BytesImageCurrent, this->memoryUsage());
+    DebugCount::increase(DebugObject::BytesImageUnloaded, this->memoryUsage());
 
     this->items_.clear();
     this->index_ = 0;
@@ -241,6 +248,19 @@ void assignFrames(std::weak_ptr<Image> weak, QList<Frame> parsed)
             return;
         }
         shared->frames_ = std::make_unique<detail::Frames>(std::move(parsed));
+        if (shared->autoScale_)
+        {
+            // FIXME: We should actually scale the pixmaps. However, we'd also
+            //        need to cache that.
+            auto firstFrame = shared->frames_->first();
+            if (firstFrame)
+            {
+                auto actualSize = firstFrame->size();
+                shared->scale_ =
+                    static_cast<qreal>(*shared->autoScale_) /
+                    std::max({actualSize.width(), actualSize.height(), 1});
+            }
+        }
 
         // Avoid too many layouts in one event-loop iteration
         //
@@ -321,6 +341,14 @@ ImagePtr Image::fromUrl(const Url &url, qreal scale, QSize expectedSize)
     {
         cache[url] = shared = ImagePtr(new Image(url, scale, expectedSize));
     }
+
+    return shared;
+}
+
+ImagePtr Image::fromAutoscaledUrl(const Url &url, uint16_t autoScale)
+{
+    auto shared = Image::fromUrl(url, 1.0, {autoScale, autoScale});
+    shared->autoScale_ = autoScale;
 
     return shared;
 }
@@ -505,75 +533,107 @@ QSizeF Image::size() const
 void Image::actuallyLoad()
 {
     auto weak = weakOf(this);
-    NetworkRequest(this->url().string)
-        .concurrent()
-        .cache()
-        .onSuccess([weak](auto result) {
-            auto shared = weak.lock();
-            if (!shared)
-            {
-                return;
-            }
+    auto onSuccess = [weak](const auto &result) {
+        auto shared = weak.lock();
+        if (!shared)
+        {
+            return;
+        }
 
-            assert(!isAppAboutToQuit());
+        assert(!isAppAboutToQuit());
 
-            QBuffer buffer;
-            buffer.setData(result.getData());
-            QImageReader reader(&buffer);
+        QBuffer buffer;
+        buffer.setData(result.getData());
+        QImageReader reader(&buffer);
 
-            if (!reader.canRead())
-            {
-                qCDebug(chatterinoImage)
-                    << "Error: image cant be read " << shared->url().string;
-                shared->empty_ = true;
-                return;
-            }
-
-            const auto size = reader.size();
-            if (size.isEmpty())
-            {
-                shared->empty_ = true;
-                return;
-            }
-
-            // returns 1 for non-animated formats
-            if (reader.imageCount() <= 0)
-            {
-                qCDebug(chatterinoImage)
-                    << "Error: image has less than 1 frame "
-                    << shared->url().string << ": " << reader.errorString();
-                shared->empty_ = true;
-                return;
-            }
-
-            // use "double" to prevent int overflows
-            if (double(size.width()) * double(size.height()) *
-                    double(reader.imageCount()) * 4.0 >
-                double(Image::maxBytesRam))
-            {
-                qCDebug(chatterinoImage) << "image too large in RAM";
-
-                shared->empty_ = true;
-                return;
-            }
-
-            auto parsed = detail::readFrames(reader, shared->url());
-
-            assignFrames(shared, parsed);
-        })
-        .onError([weak](auto /*result*/) {
-            auto shared = weak.lock();
-            if (!shared)
-            {
-                return false;
-            }
-
-            // fourtf: is this the right thing to do?
+        if (!reader.canRead())
+        {
+            qCDebug(chatterinoImage)
+                << "Error: image cant be read " << shared->url().string;
             shared->empty_ = true;
+            return;
+        }
 
-            return true;
-        })
-        .execute();
+        const auto size = reader.size();
+        if (size.isEmpty())
+        {
+            shared->empty_ = true;
+            return;
+        }
+
+        // returns 1 for non-animated formats
+        if (reader.imageCount() <= 0)
+        {
+            qCDebug(chatterinoImage)
+                << "Error: image has less than 1 frame " << shared->url().string
+                << ": " << reader.errorString();
+            shared->empty_ = true;
+            return;
+        }
+
+        // use "double" to prevent int overflows
+        if (double(size.width()) * double(size.height()) *
+                double(reader.imageCount()) * 4.0 >
+            double(Image::maxBytesRam))
+        {
+            qCDebug(chatterinoImage) << "image too large in RAM";
+
+            shared->empty_ = true;
+            return;
+        }
+
+        auto parsed = detail::readFrames(reader, shared->url());
+
+        assignFrames(shared, parsed);
+    };
+    auto onError = [weak](const auto & /*result*/) {
+        auto shared = weak.lock();
+        if (!shared)
+        {
+            return false;
+        }
+
+        // fourtf: is this the right thing to do?
+        shared->empty_ = true;
+
+        return true;
+    };
+
+    if (this->url_.string.startsWith(u":/"))
+    {
+        QThreadPool::globalInstance()->start([onSuccess = std::move(onSuccess),
+                                              onError = std::move(onError),
+                                              url = this->url_.string] {
+            QByteArray data;
+            {
+                QFile file(url);
+                if (!file.open(QFile::ReadOnly))
+                {
+                    onError(NetworkResult{
+                        NetworkResult::NetworkError::ContentNotFoundError,
+                        404,
+                        {},
+                    });
+                    return;
+                }
+                data = file.readAll();
+            }
+            onSuccess(NetworkResult{
+                NetworkResult::NetworkError::NoError,
+                200,
+                std::move(data),
+            });
+        });
+    }
+    else
+    {
+        NetworkRequest(this->url().string)
+            .concurrent()
+            .cache()
+            .onSuccess(std::move(onSuccess))
+            .onError(std::move(onError))
+            .execute();
+    }
 }
 
 void Image::expireFrames()
@@ -604,13 +664,6 @@ ImageExpirationPool::ImageExpirationPool()
     this->freeTimer_->start(
         std::chrono::duration_cast<std::chrono::milliseconds>(
             IMAGE_POOL_CLEANUP_INTERVAL));
-
-    // configure all debug counts used by images
-    DebugCount::configure("image bytes", DebugCount::Flag::DataSize);
-    DebugCount::configure("image bytes (ever loaded)",
-                          DebugCount::Flag::DataSize);
-    DebugCount::configure("image bytes (ever unloaded)",
-                          DebugCount::Flag::DataSize);
 }
 
 ImageExpirationPool &ImageExpirationPool::instance()
@@ -691,9 +744,9 @@ void ImageExpirationPool::freeOld()
     qCDebug(chatterinoImage) << "freed frame data for" << numExpired << "/"
                              << eligible << "eligible images";
 #    endif
-    DebugCount::set("last image gc: expired", numExpired);
-    DebugCount::set("last image gc: eligible", eligible);
-    DebugCount::set("last image gc: left after gc", this->allImages_.size());
+    DebugCount::set(DebugObject::LastImageGcExpired, numExpired);
+    DebugCount::set(DebugObject::LastImageGcEligible, eligible);
+    DebugCount::set(DebugObject::LastImageGcLeft, this->allImages_.size());
 }
 
 #endif

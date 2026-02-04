@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2023 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #include "providers/seventv/eventapi/Subscription.hpp"
 
 #include "util/QMagicEnum.hpp"
@@ -104,8 +108,9 @@ QDebug &operator<<(QDebug &dbg, const ObjectIDCondition &condition)
     return dbg;
 }
 
-ChannelCondition::ChannelCondition(QString twitchID)
-    : twitchID(std::move(twitchID))
+ChannelCondition::ChannelCondition(QString userID, QString platform)
+    : userID(std::move(userID))
+    , platform(std::move(platform))
 {
 }
 
@@ -113,20 +118,21 @@ QJsonObject ChannelCondition::encode() const
 {
     QJsonObject obj;
     obj["ctx"] = "channel";
-    obj["platform"] = "TWITCH";
-    obj["id"] = this->twitchID;
+    obj["platform"] = this->platform;
+    obj["id"] = this->userID;
     return obj;
 }
 
 QDebug &operator<<(QDebug &dbg, const ChannelCondition &condition)
 {
-    dbg << "{ twitchID:" << condition.twitchID << '}';
+    dbg << "{ userID:" << condition.userID << "platform:" << condition.platform
+        << '}';
     return dbg;
 }
 
 bool ChannelCondition::operator==(const ChannelCondition &rhs) const
 {
-    return this->twitchID == rhs.twitchID;
+    return this->userID == rhs.userID && this->platform == rhs.platform;
 }
 
 bool ChannelCondition::operator!=(const ChannelCondition &rhs) const

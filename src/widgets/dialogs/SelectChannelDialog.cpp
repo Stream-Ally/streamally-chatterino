@@ -1,10 +1,16 @@
+// SPDX-FileCopyrightText: 2018 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #include "widgets/dialogs/SelectChannelDialog.hpp"
 
 #include "Application.hpp"
 #include "controllers/hotkeys/HotkeyController.hpp"
+#include "providers/kick/KickChatServer.hpp"
 #include "providers/twitch/TwitchIrcServer.hpp"
 #include "singletons/Fonts.hpp"
 #include "singletons/Theme.hpp"
+#include "widgets/helper/MicroNotebook.hpp"
 
 #include <QDialogButtonBox>
 #include <QEvent>
@@ -17,6 +23,8 @@
 #include <QPushButton>
 #include <QTableView>
 #include <QVBoxLayout>
+
+#include <vector>
 
 namespace chatterino {
 
@@ -37,9 +45,15 @@ SelectChannelDialog::SelectChannelDialog(QWidget *parent)
 
     this->tabFilter_.dialog = this;
 
-    auto *layout = new QVBoxLayout(this->getLayoutContainer());
-
     auto &ui = this->ui_;
+    auto *rootLayout = new QVBoxLayout(this->getLayoutContainer());
+    rootLayout->setContentsMargins({});
+    ui.notebook = new MicroNotebook(this->getLayoutContainer());
+    rootLayout->addWidget(ui.notebook, 1);
+
+    ui.twitchPage = new QWidget;
+    auto *layout = new QVBoxLayout(ui.twitchPage);
+
     // Channel
     ui.channel = new AutoCheckedRadioButton("Channel");
     layout->addWidget(ui.channel);
@@ -156,9 +170,35 @@ SelectChannelDialog::SelectChannelDialog(QWidget *parent)
 
     layout->addStretch(1);
 
+    ui.notebook->addPage(ui.twitchPage, "Twitch");
+
+    // Kick
+    {
+        ui.kickPage = new QWidget;
+        auto *layout = new QVBoxLayout(ui.kickPage);
+
+        auto *kickLabel = new QLabel(
+            "Join a Kick channel by its name.<br>This is <b>very "
+            "experimental</b> and Chatterino7 specific. Only basic features "
+            "are supported. Please report bugs <a "
+            "href=\"https://github.com/SevenTV/chatterino7/issues\">here</a>.");
+        kickLabel->setOpenExternalLinks(true);
+        kickLabel->setWordWrap(true);
+        layout->addWidget(kickLabel);
+
+        ui.kickName = new QLineEdit();
+        ui.kickName->setPlaceholderText("Username");
+        layout->addWidget(ui.kickName);
+
+        layout->addStretch(1);
+
+        ui.notebook->addPage(ui.kickPage, "Kick");
+    }
+
     auto *buttonBox =
         new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
-    layout->addWidget(buttonBox);
+    buttonBox->setContentsMargins({10, 10, 10, 10});
+    rootLayout->addWidget(buttonBox);
 
     QObject::connect(buttonBox, &QDialogButtonBox::accepted, this, [this] {
         this->ok();
@@ -224,6 +264,12 @@ void SelectChannelDialog::setSelectedChannel(
             this->ui_.automod->setFocus();
         }
         break;
+        case Channel::Type::Kick: {
+            this->ui_.kickName->setText(channel->getName());
+            this->ui_.kickName->selectAll();
+            this->ui_.notebook->select(this->ui_.kickPage);
+        }
+        break;
         default: {
             this->ui_.channel->setChecked(true);
         }
@@ -237,6 +283,12 @@ IndirectChannel SelectChannelDialog::getSelectedChannel() const
     if (!this->hasSelectedChannel_)
     {
         return this->selectedChannel_;
+    }
+
+    if (this->ui_.notebook->isSelected(this->ui_.kickPage))
+    {
+        return getApp()->getKickChatServer()->getOrCreate(
+            this->ui_.kickName->text().trimmed());
     }
 
     if (this->ui_.channel->isChecked())

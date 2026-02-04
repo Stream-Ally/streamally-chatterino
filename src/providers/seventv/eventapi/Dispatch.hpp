@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2023 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
 #include "providers/seventv/eventapi/Subscription.hpp"
@@ -79,8 +83,10 @@ struct CosmeticCreateDispatch {
 
 struct EntitlementCreateDeleteDispatch {
     /** id of the user */
-    QString userID;
-    QString userName;
+    QString twitchUserID;
+    QString twitchUserName;
+    uint64_t kickUserID;
+    QString kickUserName;
     /** id of the entitlement */
     QString refID;
     CosmeticKind kind;

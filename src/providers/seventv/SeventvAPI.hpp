@@ -1,5 +1,10 @@
+// SPDX-FileCopyrightText: 2023 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
+#include <cstdint>
 #include <functional>
 
 class QString;
@@ -27,6 +32,9 @@ public:
     void getUserByTwitchID(const QString &twitchID,
                            SuccessCallback<const QJsonObject &> &&onSuccess,
                            ErrorCallback &&onError);
+    void getUserByKickID(uint64_t userID,
+                         SuccessCallback<const QJsonObject &> &&onSuccess,
+                         ErrorCallback &&onError);
     void getEmoteSet(const QString &emoteSet,
                      SuccessCallback<const QJsonObject &> &&onSuccess,
                      ErrorCallback &&onError);
@@ -34,6 +42,10 @@ public:
     void updatePresence(const QString &twitchChannelID,
                         const QString &seventvUserID,
                         SuccessCallback<> &&onSuccess, ErrorCallback &&onError);
+
+    void updateKickPresence(uint64_t kickUserID, const QString &seventvUserID,
+                            SuccessCallback<> &&onSuccess,
+                            ErrorCallback &&onError);
 };
 
 }  // namespace chatterino

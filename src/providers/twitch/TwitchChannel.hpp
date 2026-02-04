@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2017 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
 #include "common/Aliases.hpp"
@@ -182,7 +186,7 @@ public:
     bool canReconnect() const override;
     void reconnect() override;
     QString getCurrentStreamID() const override;
-    void createClip();
+    void createClip(const QString &title, std::optional<int> duration);
 
     /// Delete the message with the specified ID as a moderator.
     ///
@@ -257,11 +261,6 @@ public:
     void updateSeventvData(const QString &newUserID,
                            const QString &newEmoteSetID);
 
-    // Update the user's last message and insert the personal emotes if necessary.
-    void upsertPersonalSeventvEmotes(
-        const QString &userLogin,
-        const std::shared_ptr<const EmoteMap> &emoteMap);
-
     // Badges
     std::optional<EmotePtr> ffzCustomModBadge() const;
     std::optional<EmotePtr> ffzCustomVipBadge() const;
@@ -298,6 +297,27 @@ public:
      */
     std::shared_ptr<MessageThread> getOrCreateThread(const MessagePtr &message);
 
+    /// Fired when a message is supposed to be sent by the user in this channel.
+    ///
+    /// This should only be handled by one component.
+    ///
+    /// Arguments:
+    /// - `messageText`: The text to be sent.
+    /// - `wasSent`: A return channel for whether the message was sent or not.
+    pajlada::Signals::Signal<const QString &, bool &> sendMessageSignal;
+
+    /// Fired when a reply to a message is supposed to be sent by the user in
+    /// this channel.
+    ///
+    /// This should only be handled by one component.
+    ///
+    /// Arguments:
+    /// - `messageText`: The text to be sent.
+    /// - `replyToMessageID`: The ID of the replied-to message.
+    /// - `wasSent`: A return channel for whether the message was sent or not.
+    pajlada::Signals::Signal<const QString &, const QString &, bool &>
+        sendReplySignal;
+
     /**
      * This signal fires when the local user has joined the channel
      **/
@@ -315,6 +335,10 @@ public:
     pajlada::Signals::NoArgSignal streamStatusChanged;
 
     pajlada::Signals::NoArgSignal roomModesChanged;
+
+    pajlada::Signals::NoArgSignal destroyed;
+
+    pajlada::Signals::Signal<const QString &> sendWaitUpdate;
 
     // Channel point rewards
     void addQueuedRedemption(const QString &rewardId,
@@ -345,6 +369,21 @@ public:
      **/
     const QString &getDisplayName() const override;
     void updateDisplayName(const QString &displayName);
+
+    /**
+     * Sync the text of the send wait timer to the actual time remaining.
+     */
+    void syncSendWaitTimer();
+    /**
+     * Set the send wait timer to given number of seconds
+     *
+     * When a channel is in slow mode or the user is timed out, calling
+     * this function sets the timer to show how long the user will need
+     * to wait before they can send again.
+     */
+    void setSendWait(int seconds);
+
+    bool isLoadingRecentMessages() const;
 
 private:
     struct NameOptions {
@@ -382,6 +421,9 @@ private:
 
     /** Joins (subscribes to) a Twitch channel for updates on BTTV. */
     void joinBttvChannel() const;
+
+    void updateBttvActivity();
+
     /**
      * Indicates an activity to 7TV in this channel for this user.
      * This is done at most once every 60s.
@@ -519,6 +561,8 @@ private:
      */
     QDateTime nextSeventvActivity_;
 
+    QDateTime nextBttvActivity_;
+
     /** The platform of the last live emote update ("7TV", "BTTV", "FFZ"). */
     QString lastLiveUpdateEmotePlatform_;
     /** The actor name of the last live emote update. */
@@ -545,6 +589,10 @@ private:
     friend class Commands_E2E_Test;
     friend class ::TestIrcMessageHandlerP;
     friend class ::TestEventSubMessagesP;
+
+    QTimer sendWaitTimer_;
+    // Timepoint at which the user can send messages again
+    std::optional<std::chrono::steady_clock::time_point> sendWaitEnd_;
 };
 
 }  // namespace chatterino

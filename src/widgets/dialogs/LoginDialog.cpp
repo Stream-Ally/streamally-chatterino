@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2017 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #include "widgets/dialogs/LoginDialog.hpp"
 
 #include "Application.hpp"
@@ -259,6 +263,8 @@ LoginDialog::LoginDialog(QWidget *parent)
                      });
 
     this->ui_.mainLayout.addWidget(&this->ui_.buttonBox);
+
+    this->ui_.tabWidget.addTab(&this->ui_.kick, "Kick");
 }
 
 }  // namespace chatterino

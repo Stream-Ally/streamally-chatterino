@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2018 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
 #include "widgets/BaseWindow.hpp"
@@ -34,6 +38,7 @@ namespace chatterino {
 
 class EditableModelView;
 class IndirectChannel;
+class MicroNotebook;
 class Channel;
 using ChannelPtr = std::shared_ptr<Channel>;
 
@@ -82,6 +87,12 @@ private:
 
         detail::AutoCheckedRadioButton *automod;
         QLabel *automodLabel;
+
+        QLineEdit *kickName;
+
+        MicroNotebook *notebook;
+        QWidget *twitchPage;
+        QWidget *kickPage;
     } ui_{};
 
     EventFilter tabFilter_;

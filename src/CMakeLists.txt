@@ -79,6 +79,10 @@ set(SOURCE_FILES
         controllers/commands/builtin/chatterino/Debugging.hpp
         controllers/commands/builtin/Misc.cpp
         controllers/commands/builtin/Misc.hpp
+        controllers/commands/builtin/kick/KickRawEvent.cpp
+        controllers/commands/builtin/kick/KickRawEvent.hpp
+        controllers/commands/builtin/kick/ModerationActions.cpp
+        controllers/commands/builtin/kick/ModerationActions.hpp
         controllers/commands/builtin/twitch/AddModerator.cpp
         controllers/commands/builtin/twitch/AddModerator.hpp
         controllers/commands/builtin/twitch/AddVIP.cpp
@@ -99,6 +103,12 @@ set(SOURCE_FILES
         controllers/commands/builtin/twitch/GetModerators.hpp
         controllers/commands/builtin/twitch/GetVIPs.cpp
         controllers/commands/builtin/twitch/GetVIPs.hpp
+        controllers/commands/builtin/twitch/LowTrust.cpp
+        controllers/commands/builtin/twitch/LowTrust.hpp
+        controllers/commands/builtin/twitch/Poll.cpp
+        controllers/commands/builtin/twitch/Poll.hpp
+        controllers/commands/builtin/twitch/Prediction.cpp
+        controllers/commands/builtin/twitch/Prediction.hpp
         controllers/commands/builtin/twitch/Raid.cpp
         controllers/commands/builtin/twitch/Raid.hpp
         controllers/commands/builtin/twitch/RemoveModerator.cpp
@@ -193,12 +203,15 @@ set(SOURCE_FILES
         controllers/highlights/HighlightBadge.hpp
         controllers/highlights/HighlightBlacklistModel.cpp
         controllers/highlights/HighlightBlacklistModel.hpp
+        controllers/highlights/HighlightCheck.hpp
         controllers/highlights/HighlightController.cpp
         controllers/highlights/HighlightController.hpp
         controllers/highlights/HighlightModel.cpp
         controllers/highlights/HighlightModel.hpp
         controllers/highlights/HighlightPhrase.cpp
         controllers/highlights/HighlightPhrase.hpp
+        controllers/highlights/HighlightResult.cpp
+        controllers/highlights/HighlightResult.hpp
         controllers/highlights/UserHighlightModel.cpp
         controllers/highlights/UserHighlightModel.hpp
 
@@ -243,8 +256,14 @@ set(SOURCE_FILES
         controllers/pings/MutedChannelModel.hpp
 
 
+        controllers/plugins/api/Accounts.cpp
+        controllers/plugins/api/Accounts.hpp
         controllers/plugins/api/ChannelRef.cpp
         controllers/plugins/api/ChannelRef.hpp
+        controllers/plugins/api/ConnectionHandle.cpp
+        controllers/plugins/api/ConnectionHandle.hpp
+        controllers/plugins/api/DebugLibrary.cpp
+        controllers/plugins/api/DebugLibrary.hpp
         controllers/plugins/api/EventType.hpp
         controllers/plugins/api/HTTPRequest.cpp
         controllers/plugins/api/HTTPRequest.hpp
@@ -262,6 +281,8 @@ set(SOURCE_FILES
         controllers/plugins/api/Message.hpp
         controllers/plugins/api/WebSocket.cpp
         controllers/plugins/api/WebSocket.hpp
+        controllers/plugins/ConnectionManager.cpp
+        controllers/plugins/ConnectionManager.hpp
         controllers/plugins/LuaAPI.cpp
         controllers/plugins/LuaAPI.hpp
         controllers/plugins/LuaUtilities.cpp
@@ -270,8 +291,12 @@ set(SOURCE_FILES
         controllers/plugins/PluginController.hpp
         controllers/plugins/Plugin.cpp
         controllers/plugins/Plugin.hpp
+        controllers/plugins/PluginMeta.cpp
+        controllers/plugins/PluginMeta.hpp
         controllers/plugins/PluginPermission.cpp
         controllers/plugins/PluginPermission.hpp
+        controllers/plugins/PluginRef.cpp
+        controllers/plugins/PluginRef.hpp
         controllers/plugins/SolTypes.cpp
         controllers/plugins/SolTypes.hpp
 
@@ -280,6 +305,9 @@ set(SOURCE_FILES
         controllers/sound/MiniaudioBackend.hpp
         controllers/sound/NullBackend.cpp
         controllers/sound/NullBackend.hpp
+
+        controllers/spellcheck/SpellChecker.cpp
+        controllers/spellcheck/SpellChecker.hpp
 
         controllers/twitch/LiveController.cpp
         controllers/twitch/LiveController.hpp
@@ -344,23 +372,8 @@ set(SOURCE_FILES
         providers/NetworkConfigurationProvider.cpp
         providers/NetworkConfigurationProvider.hpp
 
-        providers/seventv/SeventvBadges.cpp
-        providers/seventv/SeventvBadges.hpp
-        providers/seventv/SeventvPaints.cpp
-        providers/seventv/SeventvPaints.hpp
-        providers/seventv/SeventvEmotes.cpp
-        providers/seventv/SeventvEmotes.hpp
-        providers/seventv/paints/Paint.hpp
-        providers/seventv/paints/Paint.cpp
-        providers/seventv/paints/PaintDropShadow.hpp
-        providers/seventv/paints/PaintDropShadow.cpp
-        providers/seventv/paints/LinearGradientPaint.hpp
-        providers/seventv/paints/LinearGradientPaint.cpp
-        providers/seventv/paints/RadialGradientPaint.hpp
-        providers/seventv/paints/RadialGradientPaint.cpp
-        providers/seventv/paints/UrlPaint.hpp
-        providers/seventv/paints/UrlPaint.cpp
-
+        providers/bttv/BttvBadges.cpp
+        providers/bttv/BttvBadges.hpp
         providers/bttv/BttvEmotes.cpp
         providers/bttv/BttvEmotes.hpp
         providers/bttv/BttvLiveUpdates.cpp
@@ -393,6 +406,27 @@ set(SOURCE_FILES
         providers/irc/IrcConnection2.cpp
         providers/irc/IrcConnection2.hpp
 
+        providers/kick/KickAccount.cpp
+        providers/kick/KickAccount.hpp
+        providers/kick/KickAccountManager.cpp
+        providers/kick/KickAccountManager.hpp
+        providers/kick/KickApi.cpp
+        providers/kick/KickApi.hpp
+        providers/kick/KickBadges.cpp
+        providers/kick/KickBadges.hpp
+        providers/kick/KickChannel.cpp
+        providers/kick/KickChannel.hpp
+        providers/kick/KickChatServer.cpp
+        providers/kick/KickChatServer.hpp
+        providers/kick/KickEmotes.cpp
+        providers/kick/KickEmotes.hpp
+        providers/kick/KickLiveController.cpp
+        providers/kick/KickLiveController.hpp
+        providers/kick/KickLiveUpdates.cpp
+        providers/kick/KickLiveUpdates.hpp
+        providers/kick/KickMessageBuilder.cpp
+        providers/kick/KickMessageBuilder.hpp
+
         providers/links/LinkInfo.cpp
         providers/links/LinkInfo.hpp
         providers/links/LinkResolver.cpp
@@ -423,8 +457,21 @@ set(SOURCE_FILES
         providers/seventv/SeventvEmotes.hpp
         providers/seventv/SeventvEventAPI.cpp
         providers/seventv/SeventvEventAPI.hpp
+        providers/seventv/SeventvPaints.cpp
+        providers/seventv/SeventvPaints.hpp
         providers/seventv/SeventvPersonalEmotes.cpp
         providers/seventv/SeventvPersonalEmotes.hpp
+
+        providers/seventv/paints/Paint.hpp
+        providers/seventv/paints/Paint.cpp
+        providers/seventv/paints/PaintDropShadow.hpp
+        providers/seventv/paints/PaintDropShadow.cpp
+        providers/seventv/paints/LinearGradientPaint.hpp
+        providers/seventv/paints/LinearGradientPaint.cpp
+        providers/seventv/paints/RadialGradientPaint.hpp
+        providers/seventv/paints/RadialGradientPaint.cpp
+        providers/seventv/paints/UrlPaint.hpp
+        providers/seventv/paints/UrlPaint.cpp
 
         providers/seventv/eventapi/Client.cpp
         providers/seventv/eventapi/Client.hpp
@@ -441,12 +488,9 @@ set(SOURCE_FILES
         providers/twitch/IrcMessageHandler.hpp
         providers/twitch/PubSubClient.cpp
         providers/twitch/PubSubClient.hpp
-        providers/twitch/PubSubClientOptions.hpp
-        providers/twitch/PubSubHelpers.hpp
         providers/twitch/PubSubManager.cpp
         providers/twitch/PubSubManager.hpp
         providers/twitch/PubSubMessages.hpp
-        providers/twitch/PubSubWebsocket.hpp
         providers/twitch/TwitchAccount.cpp
         providers/twitch/TwitchAccount.hpp
         providers/twitch/TwitchAccountManager.cpp
@@ -535,6 +579,10 @@ set(SOURCE_FILES
         util/AbandonObject.hpp
         util/AttachToConsole.cpp
         util/AttachToConsole.hpp
+        util/BadgeRegistry.cpp
+        util/BadgeRegistry.hpp
+        util/BoostJsonWrap.cpp
+        util/BoostJsonWrap.hpp
         util/CancellationToken.hpp
         util/ChannelHelpers.hpp
         util/Clipboard.cpp
@@ -555,6 +603,8 @@ set(SOURCE_FILES
         util/FuzzyConvert.hpp
         util/Helpers.cpp
         util/Helpers.hpp
+        util/HttpServer.cpp
+        util/HttpServer.hpp
         util/ImageUploader.cpp
         util/ImageUploader.hpp
         util/IncognitoBrowser.cpp
@@ -625,6 +675,8 @@ set(SOURCE_FILES
         widgets/FramelessEmbedWindow.hpp
         widgets/Label.cpp
         widgets/Label.hpp
+        widgets/MarkdownLabel.cpp
+        widgets/MarkdownLabel.hpp
         widgets/Notebook.cpp
         widgets/Notebook.hpp
         widgets/OverlayWindow.cpp
@@ -689,6 +741,8 @@ set(SOURCE_FILES
         widgets/dialogs/font/PreviewWidget.cpp
         widgets/dialogs/font/PreviewWidget.hpp
 
+        widgets/dialogs/KickLoginPage.cpp
+        widgets/dialogs/KickLoginPage.hpp
         widgets/dialogs/LastRunCrashDialog.cpp
         widgets/dialogs/LastRunCrashDialog.hpp
         widgets/dialogs/LoginDialog.cpp
@@ -737,6 +791,8 @@ set(SOURCE_FILES
 
         widgets/helper/ChannelView.cpp
         widgets/helper/ChannelView.hpp
+        widgets/helper/CmdDeleteKeyFilter.cpp
+        widgets/helper/CmdDeleteKeyFilter.hpp
         widgets/helper/ComboBoxItemDelegate.cpp
         widgets/helper/ComboBoxItemDelegate.hpp
         widgets/helper/DebugPopup.cpp
@@ -749,8 +805,12 @@ set(SOURCE_FILES
         widgets/helper/IconDelegate.hpp
         widgets/helper/InvisibleSizeGrip.cpp
         widgets/helper/InvisibleSizeGrip.hpp
+        widgets/helper/KickAccountSwitchWidget.cpp
+        widgets/helper/KickAccountSwitchWidget.hpp
         widgets/helper/MessageView.cpp
         widgets/helper/MessageView.hpp
+        widgets/helper/MicroNotebook.cpp
+        widgets/helper/MicroNotebook.hpp
         widgets/helper/NotebookTab.cpp
         widgets/helper/NotebookTab.hpp
         widgets/helper/OverlayInteraction.cpp
@@ -828,6 +888,8 @@ set(SOURCE_FILES
         widgets/splits/InputCompletionItem.hpp
         widgets/splits/InputCompletionPopup.cpp
         widgets/splits/InputCompletionPopup.hpp
+        widgets/splits/InputHighlighter.cpp
+        widgets/splits/InputHighlighter.hpp
         widgets/splits/Split.cpp
         widgets/splits/Split.hpp
         widgets/splits/SplitCommon.hpp
@@ -897,7 +959,6 @@ if (CHATTERINO_GENERATE_COVERAGE)
         EXCLUDE "lib/settings/*"
         EXCLUDE "lib/signals/*"
         EXCLUDE "lib/sol2/*"
-        EXCLUDE "lib/websocketpp/*"
         EXCLUDE "lib/WinToast/*"
 
         EXCLUDE "*/ui_*.h"
@@ -930,7 +991,6 @@ target_link_libraries(${LIBRARY_PROJECT}
         Pajlada::Serialize
         Pajlada::Settings
         Pajlada::Signals
-        websocketpp::websocketpp
         Threads::Threads
         LRUCache
         MagicEnum
@@ -940,6 +1000,11 @@ target_link_libraries(${LIBRARY_PROJECT}
         )
 if (CHATTERINO_PLUGINS)
     target_link_libraries(${LIBRARY_PROJECT} PUBLIC lua sol2::sol2)
+endif()
+
+if (CHATTERINO_SPELLCHECK)
+    target_compile_definitions(${LIBRARY_PROJECT} PUBLIC CHATTERINO_WITH_SPELLCHECK)
+    target_link_libraries(${LIBRARY_PROJECT} PRIVATE hunspell::hunspell)
 endif()
 
 if (CHATTERINO_ALLOW_PRIVATE_QT_API)
@@ -1115,6 +1180,7 @@ set_target_properties(${LIBRARY_PROJECT}
 set(VERSION_SOURCE_FILES common/Version.cpp common/Version.hpp)
 add_library(${VERSION_PROJECT} STATIC ${VERSION_SOURCE_FILES})
 target_compile_definitions(${VERSION_PROJECT} PRIVATE
+    CHATTERINO_EXTRA_BUILD_STRING=${CHATTERINO_EXTRA_BUILD_STRING}
     $<$<BOOL:${WIN32}>:USEWINSDK>
     $<$<BOOL:${BUILD_WITH_CRASHPAD}>:CHATTERINO_WITH_CRASHPAD>
 )

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2020 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #include "common/WindowDescriptors.hpp"
 
 #include "common/QLogging.hpp"
@@ -111,6 +115,19 @@ void SplitDescriptor::loadFromJSON(SplitDescriptor &descriptor,
         descriptor.channelName_ = data.value("name").toString();
     }
     descriptor.filters_ = loadFilters(root.value("filters"));
+
+    auto spellOverride = root["checkSpelling"];
+    if (spellOverride.isBool())
+    {
+        descriptor.spellCheckOverride = spellOverride.toBool();
+    }
+    if (descriptor.type_ == u"kick")
+    {
+        descriptor.kickChannelID =
+            static_cast<uint64_t>(data["channelID"].toInt());
+        descriptor.kickUserID = static_cast<uint64_t>(data["userID"].toInt());
+        descriptor.kickRoomID = static_cast<uint64_t>(data["roomID"].toInt());
+    }
 }
 
 TabDescriptor TabDescriptor::loadFromJSON(const QJsonObject &tabObj)
@@ -300,7 +317,7 @@ void WindowLayout::activateOrAddChannel(ProviderId provider,
                 this->score += 2;
                 if (split.channelName_ == this->spec)
                 {
-                    hasChannel = true;
+                    this->hasChannel = true;
                     if (!split.filters_.empty())
                     {
                         this->score += 1;

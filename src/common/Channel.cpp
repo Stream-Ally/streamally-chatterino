@@ -1,8 +1,14 @@
+// SPDX-FileCopyrightText: 2017 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #include "common/Channel.hpp"
 
 #include "Application.hpp"
+#include "messages/Emote.hpp"
 #include "messages/Message.hpp"
 #include "messages/MessageBuilder.hpp"
+#include "messages/MessageElement.hpp"
 #include "messages/MessageSimilarity.hpp"
 #include "singletons/Logging.hpp"
 #include "singletons/Settings.hpp"
@@ -33,7 +39,6 @@ Channel::~Channel()
     {
         app->getChatLogger()->closeChannel(this->name_, this->platform_);
     }
-    this->destroyed.invoke();
 }
 
 Channel::Type Channel::getType() const
@@ -61,6 +66,16 @@ bool Channel::isTwitchChannel() const
     return this->type_ >= Type::Twitch && this->type_ < Type::TwitchEnd;
 }
 
+bool Channel::isKickChannel() const
+{
+    return this->type_ == Type::Kick;
+}
+
+bool Channel::isTwitchOrKickChannel() const
+{
+    return this->isTwitchChannel() || this->isKickChannel();
+}
+
 bool Channel::isEmpty() const
 {
     return this->name_.isEmpty();
@@ -71,9 +86,36 @@ bool Channel::hasMessages() const
     return !this->messages_.empty();
 }
 
-LimitedQueueSnapshot<MessagePtr> Channel::getMessageSnapshot()
+size_t Channel::countMessages() const
+{
+    return this->messages_.size();
+}
+
+std::vector<MessagePtr> Channel::getMessageSnapshot() const
 {
     return this->messages_.getSnapshot();
+}
+
+std::vector<MessagePtr> Channel::getMessageSnapshot(size_t nItems) const
+{
+    return this->messages_.lastN(nItems);
+}
+
+std::vector<MessagePtrMut> Channel::getMessageSnapshotMut(size_t nItems) const
+{
+    return this->messages_.lastNBy<MessagePtrMut>(nItems, [](const auto &msg) {
+        return std::const_pointer_cast<Message>(msg);
+    });
+}
+
+MessagePtr Channel::getLastMessage() const
+{
+    auto last = this->messages_.last();
+    if (last)
+    {
+        return *std::move(last);
+    }
+    return nullptr;
 }
 
 void Channel::addMessage(MessagePtr message, MessageContext context,
@@ -130,7 +172,7 @@ void Channel::addOrReplaceTimeout(MessagePtr message, const QDateTime &now)
 void Channel::addOrReplaceClearChat(MessagePtr message, const QDateTime &now)
 {
     addOrReplaceChannelClear(
-        this->getMessageSnapshot(), std::move(message), now,
+        this->getMessageSnapshot(20), std::move(message), now,
         [this](auto /*idx*/, auto msg, auto replacement) {
             this->replaceMessage(msg, replacement);
         },
@@ -141,19 +183,15 @@ void Channel::addOrReplaceClearChat(MessagePtr message, const QDateTime &now)
 
 void Channel::disableAllMessages()
 {
-    LimitedQueueSnapshot<MessagePtr> snapshot = this->getMessageSnapshot();
-    int snapshotLength = snapshot.size();
-    for (int i = 0; i < snapshotLength; i++)
+    for (const auto &message : this->getMessageSnapshot())
     {
-        const auto &message = snapshot[i];
         if (message->flags.hasAny({MessageFlag::System, MessageFlag::Timeout,
                                    MessageFlag::Whisper}))
         {
             continue;
         }
 
-        // FOURTF: disabled for now
-        const_cast<Message *>(message.get())->flags.set(MessageFlag::Disabled);
+        message->flags.set(MessageFlag::Disabled);
     }
 }
 
@@ -424,6 +462,181 @@ void Channel::messageRemovedFromStart(const MessagePtr &msg)
 {
 }
 
+void Channel::upsertPersonalSeventvEmotes(
+    const QString &userLogin, const std::shared_ptr<const EmoteMap> &emoteMap)
+{
+    // This is attempting a (kind-of) surgical replacement of the users' last
+    // sent message. The the last message is essentially re-parsed and newly
+    // added emotes are inserted where appropriate.
+
+    assertInGuiThread();
+    auto snapshot = this->getMessageSnapshot();
+    if (snapshot.empty())
+    {
+        return;
+    }
+
+    /// Finds the last message of the user (searches the last five messages).
+    /// If no message is found, `std::nullopt` is returned.
+    const auto findMessage = [&]() -> std::optional<MessagePtr> {
+        auto size = static_cast<qsizetype>(snapshot.size());
+        auto end = std::max<qsizetype>(0, size - 5);
+
+        // explicitly using signed integers here to represent '-1'
+        for (qsizetype i = size - 1; i >= end; i--)
+        {
+            const auto &message = snapshot[i];
+            if (message->loginName == userLogin)
+            {
+                return message;
+            }
+        }
+
+        return std::nullopt;
+    };
+
+    const auto message = findMessage();
+    if (!message)
+    {
+        return;
+    }
+
+    using MessageElementVec = std::vector<std::unique_ptr<MessageElement>>;
+
+    /// Tries to find words in the @a textElement that are emotes in the @a emoteMap
+    /// (i.e. newly added emotes) and converts these to an emote element
+    /// or, if they're zero-width, to a layered emote element.
+    const auto upsertWords = [&](MessageElementVec &elements,
+                                 TextElement *textElement) {
+        QStringList words;
+        bool anyChange = false;
+
+        /// Appends a text element with the pending @a words
+        /// and clears the vector.
+        ///
+        /// @pre @a words must not be empty
+        const auto flush = [&]() {
+            elements.emplace_back(std::make_unique<TextElement>(
+                std::move(words), textElement->getFlags(), textElement->color(),
+                textElement->fontStyle()));
+            words.clear();
+        };
+
+        /// Attempts to insert the emote as a zero-width emote.
+        /// If there are pending words to be inserted (i.e. @a words is not empty
+        /// and thus there's no previous emote to merge the @a emote with),
+        /// or there are no elements in the message yet, the insertion fails.
+        ///
+        /// @returns `true` iff the insertion succeeded.
+        const auto tryInsertZeroWidth = [&](const EmotePtr &emote) -> bool {
+            if (!words.empty() || elements.empty())
+            {
+                // either the last element will be a TextElement _or_
+                // there are no elements.
+                return false;
+            }
+            // [THIS IS LARGELY THE SAME AS IN TwitchMessageBuilder::tryAppendEmote]
+            // Attempt to merge current zero-width emote into any previous emotes
+            auto *asEmote = dynamic_cast<EmoteElement *>(elements.back().get());
+            if (asEmote)
+            {
+                // Make sure to access asEmote before taking ownership when releasing
+                auto baseEmote = asEmote->getEmote();
+                // Need to remove EmoteElement and replace with LayeredEmoteElement
+                auto baseEmoteElement = std::move(elements.back());
+                elements.pop_back();
+
+                std::vector<LayeredEmoteElement::Emote> layers{
+                    {.ptr = baseEmote, .flags = baseEmoteElement->getFlags()},
+                    {.ptr = emote, .flags = MessageElementFlag::Emote},
+                };
+                elements.emplace_back(std::make_unique<LayeredEmoteElement>(
+                    std::move(layers),
+                    baseEmoteElement->getFlags() | MessageElementFlag::Emote,
+                    textElement->color()));
+                return true;
+            }
+
+            auto *asLayered =
+                dynamic_cast<LayeredEmoteElement *>(elements.back().get());
+            if (asLayered)
+            {
+                asLayered->addEmoteLayer(
+                    {.ptr = emote, .flags = MessageElementFlag::Emote});
+                asLayered->addFlags(MessageElementFlag::Emote);
+                return true;
+            }
+            return false;
+        };
+
+        // Find all words that match a personal emote and replace them with emotes
+        const auto prevWords = textElement->words();
+        for (const auto &word : prevWords)
+        {
+            auto emoteIt = emoteMap->find(EmoteName{word});
+            if (emoteIt == emoteMap->end())
+            {
+                words.emplace_back(word);
+                continue;
+            }
+            anyChange = true;
+
+            if (emoteIt->second->zeroWidth)
+            {
+                if (tryInsertZeroWidth(emoteIt->second))
+                {
+                    continue;
+                }
+            }
+
+            flush();
+
+            elements.emplace_back(std::make_unique<EmoteElement>(
+                emoteIt->second, MessageElementFlag::Emote));
+        }
+
+        if (anyChange)
+        {
+            flush();
+        }
+        else
+        {
+            elements.emplace_back(textElement->clone());
+        }
+    };
+
+    auto cloned = message.value()->clone();
+    // We create a new vector of elements,
+    // if we encounter a `TextElement` that contains any emote,
+    // we insert an `EmoteElement` (or `LayeredEmoteElement`) at the position.
+    MessageElementVec elements;
+    elements.reserve(cloned->elements.size());
+
+    std::for_each(
+        std::make_move_iterator(cloned->elements.begin()),
+        std::make_move_iterator(cloned->elements.end()), [&](auto &&element) {
+            MessageElement *elementPtr = element.get();
+            auto *textElement = dynamic_cast<TextElement *>(elementPtr);
+            auto *linkElement = dynamic_cast<LinkElement *>(elementPtr);
+            auto *mentionElement = dynamic_cast<MentionElement *>(elementPtr);
+
+            // Check if this contains the message text
+            if (textElement && !linkElement && !mentionElement &&
+                textElement->getFlags().has(MessageElementFlag::Text))
+            {
+                upsertWords(elements, textElement);
+            }
+            else
+            {
+                elements.emplace_back(std::forward<decltype(element)>(element));
+            }
+        });
+
+    cloned->elements = std::move(elements);
+
+    this->replaceMessage(message.value(), cloned);
+}
+
 //
 // Indirect channel
 //
@@ -440,7 +653,7 @@ IndirectChannel::IndirectChannel(ChannelPtr channel, Channel::Type type)
 
 ChannelPtr IndirectChannel::get() const
 {
-    return data_->channel;
+    return this->data_->channel;
 }
 
 void IndirectChannel::reset(ChannelPtr channel)

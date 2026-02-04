@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2018 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #include "providers/twitch/IrcMessageHandler.hpp"
 
 #include "Application.hpp"
@@ -218,7 +222,9 @@ std::optional<ClearChatMessage> parseClearChatMessage(
                        calculateMessageTime(message))
             .release();
 
-    return ClearChatMessage{.message = timeoutMsg, .disableAllMessages = false};
+    return ClearChatMessage{.message = timeoutMsg,
+                            .disableAllMessages = false,
+                            .username = username};
 }
 
 /**
@@ -394,9 +400,26 @@ void IrcMessageHandler::parsePrivMessageInto(
         if (badgesTag.isValid())
         {
             auto parsedBadges = parseBadges(badgesTag.toString());
-            channel->setMod(parsedBadges.contains("moderator"));
+            channel->setMod(parsedBadges.contains("moderator") ||
+                            parsedBadges.contains("lead_moderator"));
             channel->setVIP(parsedBadges.contains("vip"));
             channel->setStaff(parsedBadges.contains("staff"));
+        }
+
+        if (!channel->isLoadingRecentMessages())
+        {
+            // Clear the send wait timer when we are able to send a message
+            channel->setSendWait(0);
+
+            // Update send wait timer with slow mode timeout if this user is not a mod or vip.
+            if (!channel->hasHighRateLimit())
+            {
+                auto roomModes = *channel->accessRoomModes();
+                if (roomModes.slowMode > 0)
+                {
+                    channel->setSendWait(roomModes.slowMode);
+                }
+            }
         }
     }
 
@@ -505,6 +528,25 @@ void IrcMessageHandler::handleClearChatMessage(Communi::IrcMessage *message)
     }
     else
     {
+        // Set send wait timer when the user is timed out
+        const auto currentUsername =
+            getApp()->getAccounts()->twitch.getCurrent()->getUserName();
+        if (currentUsername == clearChat.username)
+        {
+            bool ok = false;
+            int remainingTime =
+                message->tags().value("ban-duration").toInt(&ok);
+            if (ok)
+            {
+                auto *tc = dynamic_cast<TwitchChannel *>(chan.get());
+                assert(tc != nullptr);
+                if (tc != nullptr)
+                {
+                    tc->setSendWait(remainingTime);
+                }
+            }
+        }
+
         chan->addOrReplaceTimeout(std::move(clearChat.message), time);
     }
 
@@ -582,27 +624,42 @@ void IrcMessageHandler::handleUserStateMessage(Communi::IrcMessage *message)
         return;
     }
 
-    // Checking if currentUser is a VIP or staff member
-    QVariant badgesTag = message->tag("badges");
-    if (badgesTag.isValid())
+    auto *tc = dynamic_cast<TwitchChannel *>(c.get());
+    if (tc != nullptr)
     {
-        auto *tc = dynamic_cast<TwitchChannel *>(c.get());
-        if (tc != nullptr)
+        bool hasModBadge = false;
+
+        // Checking if currentUser is a VIP, staff member or has moderator badges
+        QVariant badgesTag = message->tag("badges");
+        if (badgesTag.isValid())
         {
             auto parsedBadges = parseBadges(badgesTag.toString());
             tc->setVIP(parsedBadges.contains("vip"));
             tc->setStaff(parsedBadges.contains("staff"));
-        }
-    }
 
-    // Checking if currentUser is a moderator
-    QVariant modTag = message->tag("mod");
-    if (modTag.isValid())
-    {
-        auto *tc = dynamic_cast<TwitchChannel *>(c.get());
-        if (tc != nullptr)
+            hasModBadge = parsedBadges.contains("moderator") ||
+                          parsedBadges.contains("lead_moderator");
+        }
+
+        if (hasModBadge)
         {
-            tc->setMod(modTag == "1");
+            tc->setMod(true);
+        }
+        else
+        {
+            QVariant modTag = message->tag("mod");
+            if (modTag.isValid())
+            {
+                // Also checking if the mod tag is present, since badges sometimes disappear in IRC
+                tc->setMod(modTag == "1");
+            }
+        }
+
+        // When a user is updated to mod or vip status, any previous
+        // slow mode or timeout timers are no longer in effect.
+        if (tc->hasHighRateLimit())
+        {
+            tc->setSendWait(0);
         }
     }
 }
@@ -965,6 +1022,33 @@ void IrcMessageHandler::handleNoticeMessage(Communi::IrcNoticeMessage *message)
     else
     {
         channel->addMessage(msg, MessageContext::Original);
+    }
+
+    auto handleSendWait = [&channel](const QString &remaining) {
+        bool ok = false;
+        int seconds = remaining.toInt(&ok);
+        if (ok)
+        {
+            auto *tc = dynamic_cast<TwitchChannel *>(channel.get());
+            assert(tc != nullptr);
+            if (tc != nullptr)
+            {
+                tc->setSendWait(seconds);
+            }
+        }
+    };
+
+    if (tags == "msg_slowmode")
+    {
+        // Notice received when the user sends a message too quickly during slow mode.
+        // @msg-id=msg_slowmode :tmi.twitch.tv NOTICE #channel :This room is in slow mode and you are sending messages too quickly. You will be able to talk again in 10 seconds.
+        handleSendWait(message->content().split(u' ').value(21));
+    }
+    else if (tags == "msg_timedout")
+    {
+        // Notice received when the user sends a message while timed out.
+        // @msg-id=msg_timedout :tmi.twitch.tv NOTICE #twitch :You are timed out for 3600 more seconds.
+        handleSendWait(message->content().split(u' ').value(5));
     }
 }
 

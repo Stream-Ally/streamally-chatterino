@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2017 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #include "messages/Message.hpp"
 
 #include "Application.hpp"
@@ -23,12 +27,12 @@ using namespace literals;
 Message::Message()
     : parseTime(QTime::currentTime())
 {
-    DebugCount::increase("messages");
+    DebugCount::increase(DebugObject::Message);
 }
 
 Message::~Message()
 {
-    DebugCount::decrease("messages");
+    DebugCount::decrease(DebugObject::Message);
 }
 
 ScrollbarHighlight Message::getScrollBarHighlight() const
@@ -115,12 +119,14 @@ std::shared_ptr<Message> Message::clone() const
     cloned->channelName = this->channelName;
     cloned->usernameColor = this->usernameColor;
     cloned->serverReceivedTime = this->serverReceivedTime;
-    cloned->badges = this->badges;
-    cloned->badgeInfos = this->badgeInfos;
+    cloned->twitchBadges = this->twitchBadges;
+    cloned->twitchBadgeInfos = this->twitchBadgeInfos;
+    cloned->externalBadges = this->externalBadges;
     cloned->highlightColor = this->highlightColor;
     cloned->replyThread = this->replyThread;
     cloned->count = this->count;
     cloned->reward = this->reward;
+    cloned->platform = this->platform;
     std::ranges::transform(this->elements, std::back_inserter(cloned->elements),
                            [](const auto &element) {
                                return element->clone();
@@ -148,19 +154,21 @@ QJsonObject Message::toJson() const
         {"frozen"_L1, this->frozen},
     };
 
-    QJsonArray badges;
-    for (const auto &badge : this->badges)
+    QJsonArray twitchBadges;
+    for (const auto &badge : this->twitchBadges)
     {
-        badges.append(badge.key_);
+        twitchBadges.append(badge.key_);
     }
-    msg["badges"_L1] = badges;
+    msg["twitchBadges"_L1] = twitchBadges;
 
-    QJsonObject badgeInfos;
-    for (const auto &[key, value] : this->badgeInfos)
+    QJsonObject twitchBadgeInfos;
+    for (const auto &[key, value] : this->twitchBadgeInfos)
     {
-        badgeInfos.insert(key, value);
+        twitchBadgeInfos.insert(key, value);
     }
-    msg["badgeInfos"_L1] = badgeInfos;
+    msg["twitchBadgeInfos"_L1] = twitchBadgeInfos;
+
+    msg["externalBadges"_L1] = QJsonArray::fromStringList(this->externalBadges);
 
     if (this->highlightColor)
     {
@@ -194,6 +202,11 @@ QJsonObject Message::toJson() const
         elements.append(element->toJson());
     }
     msg["elements"_L1] = elements;
+
+    if (this->platform != MessagePlatform::AnyOrTwitch)
+    {
+        msg["platform"_L1] = qmagicenum::enumNameString(this->platform);
+    }
 
     return msg;
 }

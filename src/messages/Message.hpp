@@ -1,7 +1,12 @@
+// SPDX-FileCopyrightText: 2017 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
 #include "messages/MessageFlag.hpp"
 #include "providers/twitch/ChannelPointReward.hpp"
+#include "util/DebugCount.hpp"
 #include "util/QStringHash.hpp"
 
 #include <QColor>
@@ -18,8 +23,13 @@ class QJsonObject;
 namespace chatterino {
 class MessageElement;
 class MessageThread;
-class Badge;
+class TwitchBadge;
 class ScrollbarHighlight;
+
+enum class MessagePlatform : uint8_t {
+    AnyOrTwitch,
+    Kick,
+};
 
 struct Message;
 using MessagePtr = std::shared_ptr<const Message>;
@@ -55,8 +65,20 @@ struct Message {
     QString channelName;
     QColor usernameColor;
     QDateTime serverReceivedTime;
-    std::vector<Badge> badges;
-    std::unordered_map<QString, QString> badgeInfos;
+
+    /// List of Twitch badges associated with this message
+    std::vector<TwitchBadge> twitchBadges;
+
+    /// Map of extra data associated with each Twitch badge
+    std::unordered_map<QString, QString> twitchBadgeInfos;
+
+    /// List of external badges associated with this message
+    /// The badge should follow the following format: "provider:badgename". e.g.:
+    ///  - betterttv:pro
+    ///  - frankerfacez:mod
+    ///  - 7tv:sub
+    QStringList externalBadges;
+
     std::shared_ptr<QColor> highlightColor;
     // Each reply holds a reference to the thread. When every reply is dropped,
     // the reply thread will be cleaned up by the TwitchChannel.
@@ -96,6 +118,8 @@ struct Message {
     /// This is only used for plugins right now. This value is only ever set to
     /// true.
     mutable bool frozen = false;
+
+    MessagePlatform platform = MessagePlatform::AnyOrTwitch;
 
     std::vector<std::unique_ptr<MessageElement>> elements;
 

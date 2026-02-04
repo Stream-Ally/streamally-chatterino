@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2018 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #include "widgets/settingspages/GeneralPage.hpp"
 
 #include "Application.hpp"
@@ -27,6 +31,8 @@
 #include <QFormLayout>
 #include <QLabel>
 #include <QMessageBox>
+#include <QPalette>
+#include <QSignalBlocker>
 
 namespace {
 
@@ -375,6 +381,14 @@ void GeneralPage::initLayout(GeneralPageView &layout)
             "limit, or a lower limit enforced by a moderation bot")
         ->addTo(layout);
 
+    SettingWidget::checkbox("Show countdown on slow mode or when timed out",
+                            s.showSendWaitTimer)
+        ->setTooltip("Show how long you may need to wait before being able to "
+                     "send in a Twitch channel again if the channel is in slow "
+                     "mode or if you have been timed out")
+        ->addKeywords({"slowmode", "timeout"})
+        ->addTo(layout);
+
     SettingWidget::checkbox("Allow sending duplicate messages",
                             s.allowDuplicateMessages)
         ->setTooltip(
@@ -657,6 +671,14 @@ void GeneralPage::initLayout(GeneralPageView &layout)
     SettingWidget::checkbox(
         "Enable BetterTTV live emote updates (requires restart)",
         s.enableBTTVLiveUpdates)
+        ->addKeywords({"bttv"})
+        ->addTo(layout);
+    SettingWidget::checkbox("Send activity to BetterTTV", s.sendBTTVActivity)
+        ->setTooltip(
+            "When enabled, Chatterino will signal an activity to BetterTTV "
+            "when you send a chat message. This is used for badges, "
+            " and personal emotes. When disabled, no activity "
+            "is sent and others won't see your cosmetics.")
         ->addKeywords({"bttv"})
         ->addTo(layout);
 
@@ -1114,6 +1136,9 @@ void GeneralPage::initLayout(GeneralPageView &layout)
         ->addKeywords({"seventv"})
         ->setTooltip("Badges for 7TV admins, developers, and supporters")
         ->addTo(layout);
+    SettingWidget::checkbox("BetterTTV", s.showBadgesBttv)
+        ->addKeywords({"bttv"})
+        ->addTo(layout);
     layout.addSeparator();
     SettingWidget::checkbox("Use custom FrankerFaceZ moderator badges",
                             s.useCustomFfzModeratorBadges)
@@ -1210,6 +1235,81 @@ void GeneralPage::initLayout(GeneralPageView &layout)
                      "the top and a positive to the bottom.")
         ->addTo(layout);
 
+    {
+        layout.addSubtitle("Search");
+        layout.addDescription(
+            "Search engine which appears when you select text and right-click "
+            "a message. Select a search engine preset from the dropdown below, "
+            "or fill in your custom search engine URL and name.");
+        SettingWidget::checkbox("Enable search in right-click context menu",
+                                s.searchEnabled)
+            ->setTooltip(
+                "Allow searching selected text using a search engine from "
+                "the right-click context menu.")
+            ->addTo(layout);
+
+        // Preset dropdown
+        QStringList presetList = {"DuckDuckGo", "Bing", "Google"};
+        auto *presetCombo =
+            layout.addDropdown("Search engine preset", presetList,
+                               "Select a search engine preset");
+        presetCombo->setPlaceholderText("Select...");
+        presetCombo->setCurrentIndex(-1);
+        // Make placeholder text more visible
+        QPalette palette = presetCombo->palette();
+        palette.setColor(QPalette::PlaceholderText,
+                         QColor(255, 255, 255));  // white
+        presetCombo->setPalette(palette);
+        s.searchEnabled.connect([presetCombo](bool value) {
+            presetCombo->setEnabled(value);
+        });
+
+        // Connect preset dropdown to update URL and name settings
+        QObject::connect(
+            presetCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            [&s, presetCombo](int index) {
+                if (index < 0)
+                    return;
+
+                QString preset = presetCombo->itemText(index);
+                if (preset == "DuckDuckGo")
+                {
+                    s.searchEngineUrl = "https://duckduckgo.com/?q=";
+                    s.searchEngineName = "DuckDuckGo";
+                }
+                else if (preset == "Bing")
+                {
+                    s.searchEngineUrl = "https://www.bing.com/search?q=";
+                    s.searchEngineName = "Bing";
+                }
+                else if (preset == "Google")
+                {
+                    s.searchEngineUrl = "https://www.google.com/search?q=";
+                    s.searchEngineName = "Google";
+                }
+                // Reset to -1 after selection
+                {
+                    QSignalBlocker blocker(presetCombo);
+                    presetCombo->setCurrentIndex(-1);
+                }
+            });
+
+        // URL and Name text inputs
+        SettingWidget::lineEdit("Search engine URL", s.searchEngineUrl)
+            ->conditionallyEnabledBy(s.searchEnabled)
+            ->addTo(layout);
+
+        SettingWidget::lineEdit("Search engine name", s.searchEngineName)
+            ->conditionallyEnabledBy(s.searchEnabled)
+            ->addTo(layout);
+    }
+    if (supportsIncognitoLinks())
+    {
+        SettingWidget::checkbox("Search in incognito/private mode",
+                                s.searchIncognito)
+            ->addTo(layout);
+    }
+
     layout.addSubtitle("Miscellaneous");
 
     if (supportsIncognitoLinks())
@@ -1298,6 +1398,11 @@ void GeneralPage::initLayout(GeneralPageView &layout)
         ->addTo(layout);
     SettingWidget::checkbox("Display 7TV Paint Shadows",
                             s.displaySevenTVPaintShadows)
+        ->addTo(layout);
+    SettingWidget::checkbox("Use larger 7TV Paint Shadows",
+                            s.largeSevenTVPaintShadows)
+        ->setDescription(
+            "This aims to match the appearance of paints in the browser.")
         ->addTo(layout);
 
     SettingWidget::checkbox("Lowercase domains (anti-phishing)",

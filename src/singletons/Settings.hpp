@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2017 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
 #include "common/ChatterinoSetting.hpp"
@@ -24,6 +28,7 @@
 
 #include <pajlada/settings/setting.hpp>
 #include <pajlada/settings/settinglistener.hpp>
+#include <pajlada/settings/settingmanager.hpp>
 #include <pajlada/signals/signalholder.hpp>
 
 #include <optional>
@@ -130,7 +135,9 @@ public:
     /// Request the settings to be saved to file
     ///
     /// Depending on the launch options, a save might end up not happening
-    void requestSave() const;
+    ///
+    /// Returns the result from the save, or Skipped if disableSave has been called
+    pajlada::Settings::SettingManager::SaveResult requestSave() const;
 
     void saveSnapshot();
     void restoreSnapshot();
@@ -162,6 +169,8 @@ public:
                                        "#7f2026"};
     BoolSetting showEmptyInput = {"/appearance/showEmptyInputBox", true};
     BoolSetting showMessageLength = {"/appearance/messages/showMessageLength",
+                                     false};
+    BoolSetting showSendWaitTimer = {"/appearance/messages/showSendWaitTimer",
                                      false};
     EnumSetting<MessageOverflow> messageOverflow = {
         "/appearance/messages/messageOverflow", MessageOverflow::Highlight};
@@ -224,6 +233,8 @@ public:
     BoolSetting displaySevenTVPaints = {"/misc/displaySevenTVPaints", true};
     BoolSetting displaySevenTVPaintShadows = {
         "/misc/displaySevenTVPaintShadows", true};
+    BoolSetting largeSevenTVPaintShadows = {"/misc/largeSevenTVPaintShadows",
+                                            true};
     BoolSetting boldUsernames = {"/appearance/messages/boldUsernames", true};
     BoolSetting colorUsernames = {"/appearance/messages/colorUsernames", true};
     BoolSetting findAllUsernames = {"/appearance/messages/findAllUsernames",
@@ -272,6 +283,7 @@ public:
         "/appearance/badges/useCustomFfzModeratorBadges", true};
     BoolSetting useCustomFfzVipBadges = {
         "/appearance/badges/useCustomFfzVipBadges", true};
+    BoolSetting showBadgesBttv = {"/appearance/badges/bttv", true};
     BoolSetting showBadgesSevenTV = {"/appearance/badges/seventv", true};
     BoolSetting animateSevenTVBadges = {"/appearance/badges/animateSeventv",
                                         true};
@@ -306,6 +318,26 @@ public:
     BoolSetting autoCloseUserPopup = {"/behaviour/autoCloseUserPopup", true};
     BoolSetting autoCloseThreadPopup = {"/behaviour/autoCloseThreadPopup",
                                         false};
+
+    /// Specifies whether the search functionality should be enabled
+    BoolSetting searchEnabled = {
+        "/behaviour/search/enabled",
+        false,
+    };
+    /// The URL of the search engine
+    QStringSetting searchEngineUrl = {
+        "/behaviour/search/engineUrl",
+        "",
+    };
+    /// The name of the search engine
+    QStringSetting searchEngineName = {
+        "/behaviour/search/engineName",
+        "",
+    };
+    BoolSetting searchIncognito = {
+        "/behaviour/search/incognito",
+        false,
+    };
 
     EnumSetting<UsernameRightClickBehavior> usernameRightClickBehavior = {
         "/behaviour/usernameRightClickBehavior",
@@ -354,6 +386,15 @@ public:
         false,
     };
 
+    BoolSetting enableSpellChecking = {
+        "/behaviour/spellChecking/enabled",
+        false,
+    };
+    QStringSetting spellCheckingDefaultDictionary = {
+        "/behaviour/spellChecking/defaultDictionary",
+        "",
+    };
+
     FloatSetting pauseOnHoverDuration = {"/behaviour/pauseOnHoverDuration", 0};
     EnumSetting<Qt::KeyboardModifier> pauseChatModifier = {
         "/behaviour/pauseChatModifier", Qt::KeyboardModifier::NoModifier};
@@ -397,6 +438,7 @@ public:
     BoolSetting enableBTTVGlobalEmotes = {"/emotes/bttv/global", true};
     BoolSetting enableBTTVChannelEmotes = {"/emotes/bttv/channel", true};
     BoolSetting enableBTTVLiveUpdates = {"/emotes/bttv/liveupdates", true};
+    BoolSetting sendBTTVActivity = {"/emotes/bttv/sendActivity", true};
     BoolSetting enableFFZGlobalEmotes = {"/emotes/ffz/global", true};
     BoolSetting enableFFZChannelEmotes = {"/emotes/ffz/channel", true};
     BoolSetting enableSevenTVGlobalEmotes = {"/emotes/seventv/global", true};

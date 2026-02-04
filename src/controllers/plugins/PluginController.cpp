@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2023 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #ifdef CHATTERINO_HAVE_PLUGINS
 #    include "controllers/plugins/PluginController.hpp"
 
@@ -7,7 +11,10 @@
 #    include "common/QLogging.hpp"
 #    include "controllers/commands/CommandContext.hpp"
 #    include "controllers/commands/CommandController.hpp"
+#    include "controllers/plugins/api/Accounts.hpp"
 #    include "controllers/plugins/api/ChannelRef.hpp"
+#    include "controllers/plugins/api/ConnectionHandle.hpp"
+#    include "controllers/plugins/api/DebugLibrary.hpp"
 #    include "controllers/plugins/api/HTTPRequest.hpp"
 #    include "controllers/plugins/api/HTTPResponse.hpp"
 #    include "controllers/plugins/api/IOWrapper.hpp"
@@ -206,6 +213,13 @@ void PluginController::openLibrariesFor(Plugin *plugin)
         r["_IO_input"] = sol::nil;
         r["_IO_output"] = sol::nil;
     }
+    // set up debug lib
+    {
+        auto debuglib = lua.create_table();
+        g["debug"] = debuglib;
+
+        debuglib.set_function("traceback", lua::api::debugTraceback);
+    }
     PluginController::initSol(lua, plugin);
 }
 
@@ -231,7 +245,9 @@ void PluginController::initSol(sol::state_view &lua, Plugin *plugin)
     lua::api::HTTPResponse::createUserType(c2);
     lua::api::HTTPRequest::createUserType(c2);
     lua::api::WebSocket::createUserType(c2, plugin);
+    lua::api::ConnectionHandle::createUserType(c2);
     lua::api::message::createUserType(c2);
+    lua::api::createAccounts(c2);
     c2["ChannelType"] = lua::createEnumTable<Channel::Type>(lua);
     c2["HTTPMethod"] = lua::createEnumTable<NetworkRequestType>(lua);
     c2["EventType"] = lua::createEnumTable<lua::api::EventType>(lua);
@@ -440,7 +456,7 @@ std::pair<bool, QStringList> PluginController::updateCustomCompletions(
                 qCDebug(chatterinoLua)
                     << "Got error from plugin " << pl->meta.name
                     << " while refreshing tab completion: "
-                    << errOrList.get_unexpected().error();
+                    << errOrList.error();
                 continue;
             }
 

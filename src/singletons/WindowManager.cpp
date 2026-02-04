@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2017 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #include "singletons/WindowManager.hpp"
 
 #include "Application.hpp"
@@ -5,6 +9,8 @@
 #include "common/QLogging.hpp"
 #include "debug/AssertInGuiThread.hpp"
 #include "messages/MessageElement.hpp"
+#include "providers/kick/KickChannel.hpp"
+#include "providers/kick/KickChatServer.hpp"
 #include "providers/twitch/TwitchIrcServer.hpp"
 #include "singletons/Paths.hpp"
 #include "singletons/Settings.hpp"
@@ -135,6 +141,7 @@ WindowManager::WindowManager(const Args &appArgs_, const Paths &paths,
     this->updateWordTypeMaskListener.add(settings.showBadgesVanity);
     this->updateWordTypeMaskListener.add(settings.showBadgesChatterino);
     this->updateWordTypeMaskListener.add(settings.showBadgesFfz);
+    this->updateWordTypeMaskListener.add(settings.showBadgesBttv);
     this->updateWordTypeMaskListener.add(settings.showBadgesSevenTV);
     this->updateWordTypeMaskListener.add(settings.enableEmoteImages);
     this->updateWordTypeMaskListener.add(settings.lowercaseDomains);
@@ -232,6 +239,7 @@ void WindowManager::updateWordTypeMask()
     flags.set(settings->showBadgesChatterino ? MEF::BadgeChatterino
                                              : MEF::None);
     flags.set(settings->showBadgesFfz ? MEF::BadgeFfz : MEF::None);
+    flags.set(settings->showBadgesBttv ? MEF::BadgeBttv : MEF::None);
     flags.set(settings->showBadgesSevenTV ? MEF::BadgeSevenTV : MEF::None);
 
     // username
@@ -680,6 +688,12 @@ void WindowManager::encodeNodeRecursively(SplitNode *node, QJsonObject &obj)
             QJsonArray filters;
             WindowManager::encodeFilters(node->getSplit(), filters);
             obj.insert("filters", filters);
+
+            auto spellOverride = node->getSplit()->checkSpellingOverride();
+            if (spellOverride)
+            {
+                obj["checkSpelling"] = *spellOverride;
+            }
         }
         break;
         case SplitNode::Type::HorizontalContainer:
@@ -744,6 +758,18 @@ void WindowManager::encodeChannel(IndirectChannel channel, QJsonObject &obj)
             obj.insert("name", channel.get()->getName());
         }
         break;
+        case Channel::Type::Kick: {
+            obj.insert("type", "kick");
+            obj.insert("name", channel.get()->getName());
+            auto *kc = dynamic_cast<KickChannel *>(channel.get().get());
+            if (kc)
+            {
+                obj.insert("roomID", static_cast<qint64>(kc->roomID()));
+                obj.insert("userID", static_cast<qint64>(kc->userID()));
+                obj.insert("channelID", static_cast<qint64>(kc->channelID()));
+            }
+        }
+        break;
 
         default:
             break;
@@ -794,6 +820,15 @@ IndirectChannel WindowManager::decodeChannel(const SplitDescriptor &descriptor)
         return getApp()->getTwitch()->getChannelOrEmpty(
             descriptor.channelName_);
     }
+    else if (descriptor.type_ == "kick")
+    {
+        return getApp()->getKickChatServer()->getOrCreate(
+            descriptor.channelName_, KickChannel::UserInit{
+                                         .roomID = descriptor.kickRoomID,
+                                         .userID = descriptor.kickUserID,
+                                         .channelID = descriptor.kickChannelID,
+                                     });
+    }
 
     return Channel::getEmpty();
 }
@@ -805,7 +840,7 @@ void WindowManager::closeAll()
     qCDebug(chatterinoWindowmanager) << "Shutting down (closing windows)";
     this->shuttingDown_ = true;
 
-    for (Window *window : windows_)
+    for (Window *window : this->windows_)
     {
         closeWindowsRecursive(window);
     }

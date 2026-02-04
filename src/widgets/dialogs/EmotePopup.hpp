@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2017 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
 #include "widgets/BasePopup.hpp"
@@ -13,6 +17,7 @@ class Channel;
 using ChannelPtr = std::shared_ptr<Channel>;
 class Notebook;
 class TwitchChannel;
+class KickChannel;
 
 class EmotePopup : public BasePopup
 {
@@ -43,6 +48,7 @@ private:
 
     ChannelPtr channel_;
     TwitchChannel *twitchChannel_{};
+    KickChannel *kickChannel_{};
 
     QLineEdit *search_;
     Notebook *notebook_;

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2017 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #include "providers/twitch/TwitchChannel.hpp"
 
 #include "Application.hpp"
@@ -43,6 +47,7 @@
 #include "singletons/StreamerMode.hpp"
 #include "singletons/Toasts.hpp"
 #include "singletons/WindowManager.hpp"
+#include "util/FormatTime.hpp"
 #include "util/Helpers.hpp"
 #include "util/PostToThread.hpp"
 #include "util/QStringHash.hpp"
@@ -64,6 +69,7 @@
 namespace chatterino {
 
 using namespace literals;
+using namespace std::chrono_literals;
 
 namespace detail {
 
@@ -211,6 +217,11 @@ TwitchChannel::TwitchChannel(const QString &name)
             }
         });
 
+    QObject::connect(&this->sendWaitTimer_, &QTimer::timeout,
+                     &this->lifetimeGuard_, [this] {
+                         this->syncSendWaitTimer();
+                     });
+
     // debugging
 #if 0
     for (int i = 0; i < 1000; i++) {
@@ -239,6 +250,8 @@ TwitchChannel::~TwitchChannel()
         getApp()->getSeventvEventAPI()->unsubscribeTwitchChannel(
             this->roomId());
     }
+
+    this->destroyed.invoke();
 }
 
 void TwitchChannel::initialize()
@@ -834,7 +847,8 @@ void TwitchChannel::sendMessage(const QString &message)
     }
 
     bool messageSent = false;
-    this->sendMessageSignal.invoke(this->getName(), parsedMessage, messageSent);
+    this->sendMessageSignal.invoke(parsedMessage, messageSent);
+    this->updateBttvActivity();
     this->updateSevenTVActivity();
 
     if (messageSent)
@@ -875,8 +889,7 @@ void TwitchChannel::sendReply(const QString &message, const QString &replyId)
     }
 
     bool messageSent = false;
-    this->sendReplySignal.invoke(this->getName(), parsedMessage, replyId,
-                                 messageSent);
+    this->sendReplySignal.invoke(parsedMessage, replyId, messageSent);
 
     if (messageSent)
     {
@@ -994,6 +1007,12 @@ SharedAccessGuard<const TwitchChannel::RoomModes>
 void TwitchChannel::setRoomModes(const RoomModes &newRoomModes)
 {
     this->roomModes = newRoomModes;
+
+    // Clear send wait timer when slow mode is disabled
+    if (newRoomModes.slowMode == 0)
+    {
+        this->setSendWait(newRoomModes.slowMode);
+    }
 
     this->roomModesChanged.invoke();
 }
@@ -1199,7 +1218,7 @@ void TwitchChannel::updateSeventvUser(
         return;
     }
 
-    updateSeventvData(this->seventvUserID_, dispatch.emoteSetID);
+    this->updateSeventvData(this->seventvUserID_, dispatch.emoteSetID);
     SeventvEmotes::getEmoteSet(
         dispatch.emoteSetID,
         [this, weak = weakOf<Channel>(this), dispatch](auto &&emotes,
@@ -1959,7 +1978,8 @@ void TwitchChannel::setCheerEmoteSets(
     *this->cheerEmoteSets_.access() = std::move(emoteSets);
 }
 
-void TwitchChannel::createClip()
+void TwitchChannel::createClip(const QString &title,
+                               const std::optional<int> duration)
 {
     if (!this->isLive())
     {
@@ -1983,7 +2003,7 @@ void TwitchChannel::createClip()
     this->isClipCreationInProgress = true;
 
     getHelix()->createClip(
-        this->roomId(),
+        this->roomId(), title, duration,
         // successCallback
         [this](const HelixClip &clip) {
             MessageBuilder builder;
@@ -2260,6 +2280,31 @@ std::optional<CheerEmote> TwitchChannel::cheerEmote(const QString &string) const
     return std::nullopt;
 }
 
+void TwitchChannel::updateBttvActivity()
+{
+    if (!getApp()->getBttvLiveUpdates())
+    {
+        return;
+    }
+
+    auto now = QDateTime::currentDateTimeUtc();
+    if (this->nextBttvActivity_.isValid() && now < this->nextBttvActivity_)
+    {
+        return;
+    }
+    this->nextBttvActivity_ = now.addSecs(60);
+
+    qCDebug(chatterinoBttv) << "Sending activity in" << this->getName();
+
+    auto acc = getApp()->getAccounts()->twitch.getCurrent();
+    if (acc->isAnon())
+    {
+        return;
+    }
+    getApp()->getBttvLiveUpdates()->broadcastMe(this->roomId(),
+                                                acc->getUserId());
+}
+
 void TwitchChannel::updateSevenTVActivity()
 {
     static const QString seventvActivityUrl =
@@ -2314,178 +2359,48 @@ void TwitchChannel::listenSevenTVCosmetics() const
     }
 }
 
-void TwitchChannel::upsertPersonalSeventvEmotes(
-    const QString &userLogin, const std::shared_ptr<const EmoteMap> &emoteMap)
+void TwitchChannel::syncSendWaitTimer()
 {
-    // This is attempting a (kind-of) surgical replacement of the users' last
-    // sent message. The the last message is essentially re-parsed and newly
-    // added emotes are inserted where appropriate.
-
-    assertInGuiThread();
-    auto snapshot = this->getMessageSnapshot();
-    if (snapshot.size() == 0)
+    auto now = std::chrono::steady_clock::now();
+    const auto remaining =
+        this->sendWaitEnd_.has_value()
+            ? std::chrono::duration_cast<std::chrono::seconds>(
+                  this->sendWaitEnd_.value() - now)
+            : 0s;
+    if (remaining <= 0s)
     {
+        this->sendWaitTimer_.stop();
+        this->sendWaitUpdate.invoke("");
+    }
+    else
+    {
+        this->sendWaitUpdate.invoke(formatTime(remaining, 2));
+    }
+}
+
+void TwitchChannel::setSendWait(int seconds)
+{
+    if (seconds <= 0)
+    {
+        if (this->sendWaitEnd_.has_value())
+        {
+            this->sendWaitEnd_ = std::nullopt;
+            this->syncSendWaitTimer();
+        }
         return;
     }
-
-    /// Finds the last message of the user (searches the last five messages).
-    /// If no message is found, `std::nullopt` is returned.
-    const auto findMessage = [&]() -> std::optional<MessagePtr> {
-        auto size = static_cast<qsizetype>(snapshot.size());
-        auto end = std::max<qsizetype>(0, size - 5);
-
-        // explicitly using signed integers here to represent '-1'
-        for (qsizetype i = size - 1; i >= end; i--)
-        {
-            const auto &message = snapshot[i];
-            if (message->loginName == userLogin)
-            {
-                return message;
-            }
-        }
-
-        return std::nullopt;
-    };
-
-    const auto message = findMessage();
-    if (!message)
+    this->sendWaitEnd_ =
+        std::chrono::steady_clock::now() + std::chrono::seconds(seconds);
+    if (!this->sendWaitTimer_.isActive())
     {
-        return;
+        this->sendWaitTimer_.start(1s);
+        this->syncSendWaitTimer();
     }
+}
 
-    using MessageElementVec = std::vector<std::unique_ptr<MessageElement>>;
-
-    /// Tries to find words in the @a textElement that are emotes in the @a emoteMap
-    /// (i.e. newly added emotes) and converts these to an emote element
-    /// or, if they're zero-width, to a layered emote element.
-    const auto upsertWords = [&](MessageElementVec &elements,
-                                 TextElement *textElement) {
-        QStringList words;
-        bool anyChange = false;
-
-        /// Appends a text element with the pending @a words
-        /// and clears the vector.
-        ///
-        /// @pre @a words must not be empty
-        const auto flush = [&]() {
-            elements.emplace_back(std::make_unique<TextElement>(
-                std::move(words), textElement->getFlags(), textElement->color(),
-                textElement->fontStyle()));
-            words.clear();
-        };
-
-        /// Attempts to insert the emote as a zero-width emote.
-        /// If there are pending words to be inserted (i.e. @a words is not empty
-        /// and thus there's no previous emote to merge the @a emote with),
-        /// or there are no elements in the message yet, the insertion fails.
-        ///
-        /// @returns `true` iff the insertion succeeded.
-        const auto tryInsertZeroWidth = [&](const EmotePtr &emote) -> bool {
-            if (!words.empty() || elements.empty())
-            {
-                // either the last element will be a TextElement _or_
-                // there are no elements.
-                return false;
-            }
-            // [THIS IS LARGELY THE SAME AS IN TwitchMessageBuilder::tryAppendEmote]
-            // Attempt to merge current zero-width emote into any previous emotes
-            auto *asEmote = dynamic_cast<EmoteElement *>(elements.back().get());
-            if (asEmote)
-            {
-                // Make sure to access asEmote before taking ownership when releasing
-                auto baseEmote = asEmote->getEmote();
-                // Need to remove EmoteElement and replace with LayeredEmoteElement
-                auto baseEmoteElement = std::move(elements.back());
-                elements.pop_back();
-
-                std::vector<LayeredEmoteElement::Emote> layers{
-                    {.ptr = baseEmote, .flags = baseEmoteElement->getFlags()},
-                    {.ptr = emote, .flags = MessageElementFlag::Emote},
-                };
-                elements.emplace_back(std::make_unique<LayeredEmoteElement>(
-                    std::move(layers),
-                    baseEmoteElement->getFlags() | MessageElementFlag::Emote,
-                    textElement->color()));
-                return true;
-            }
-
-            auto *asLayered =
-                dynamic_cast<LayeredEmoteElement *>(elements.back().get());
-            if (asLayered)
-            {
-                asLayered->addEmoteLayer(
-                    {.ptr = emote, .flags = MessageElementFlag::Emote});
-                asLayered->addFlags(MessageElementFlag::Emote);
-                return true;
-            }
-            return false;
-        };
-
-        // Find all words that match a personal emote and replace them with emotes
-        for (const auto &word : textElement->words())
-        {
-            auto emoteIt = emoteMap->find(EmoteName{word});
-            if (emoteIt == emoteMap->end())
-            {
-                words.emplace_back(word);
-                continue;
-            }
-            anyChange = true;
-
-            if (emoteIt->second->zeroWidth)
-            {
-                if (tryInsertZeroWidth(emoteIt->second))
-                {
-                    continue;
-                }
-            }
-
-            flush();
-
-            elements.emplace_back(std::make_unique<EmoteElement>(
-                emoteIt->second, MessageElementFlag::Emote));
-        }
-
-        if (anyChange)
-        {
-            flush();
-        }
-        else
-        {
-            elements.emplace_back(textElement->clone());
-        }
-    };
-
-    auto cloned = message.value()->clone();
-    // We create a new vector of elements,
-    // if we encounter a `TextElement` that contains any emote,
-    // we insert an `EmoteElement` (or `LayeredEmoteElement`) at the position.
-    MessageElementVec elements;
-    elements.reserve(cloned->elements.size());
-
-    std::for_each(
-        std::make_move_iterator(cloned->elements.begin()),
-        std::make_move_iterator(cloned->elements.end()), [&](auto &&element) {
-            MessageElement *elementPtr = element.get();
-            auto *textElement = dynamic_cast<TextElement *>(elementPtr);
-            auto *linkElement = dynamic_cast<LinkElement *>(elementPtr);
-            auto *mentionElement = dynamic_cast<MentionElement *>(elementPtr);
-
-            // Check if this contains the message text
-            if (textElement && !linkElement && !mentionElement &&
-                textElement->getFlags().has(MessageElementFlag::Text))
-            {
-                upsertWords(elements, textElement);
-            }
-            else
-            {
-                elements.emplace_back(std::forward<decltype(element)>(element));
-            }
-        });
-
-    cloned->elements = std::move(elements);
-
-    this->replaceMessage(message.value(), cloned);
+bool TwitchChannel::isLoadingRecentMessages() const
+{
+    return this->loadingRecentMessages_.test();
 }
 
 }  // namespace chatterino

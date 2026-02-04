@@ -164,6 +164,12 @@ public:
         return nullptr;
     }
 
+    BttvBadges *getBttvBadges() override
+    {
+        assert(!"getBttvBadges was called without being initialized");
+        return nullptr;
+    }
+
     SeventvBadges *getSeventvBadges() override
     {
         assert(!"getSeventvBadges was called without being initialized");
@@ -212,6 +218,11 @@ public:
     }
 
     SeventvAPI *getSeventvAPI() override
+    {
+        return nullptr;
+    }
+
+    SpellChecker *getSpellChecker() override
     {
         return nullptr;
     }
@@ -292,6 +303,14 @@ public:
     {
         assert(false && "EmptyApplication::getEventSub was called without "
                         "being initialized");
+        return nullptr;
+    }
+
+    KickChatServer *getKickChatServer() override
+    {
+        assert(false &&
+               "EmptyApplication::getKickChatServer was called without "
+               "being initialized");
         return nullptr;
     }
 

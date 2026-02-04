@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2018 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #include "singletons/Updates.hpp"
 
 #include "common/Literals.hpp"
@@ -82,6 +86,14 @@ bool Updates::isDowngradeOf(const QString &online, const QString &current)
         return false;
     }
 
+    // TODO: remove once chatterino7's major version switches from `7` to `2`
+    if (currentVersion.major == 7 && onlineVersion.major == 2)
+    {
+        currentVersion = {2, currentVersion.minor, currentVersion.patch,
+                          currentVersion.prerelease_type,
+                          currentVersion.prerelease_number};
+    }
+
     return onlineVersion < currentVersion;
 }
 
@@ -107,12 +119,12 @@ void Updates::deleteOldFiles()
 
 const QString &Updates::getCurrentVersion() const
 {
-    return currentVersion_;
+    return this->currentVersion_;
 }
 
 const QString &Updates::getOnlineVersion() const
 {
-    return onlineVersion_;
+    return this->onlineVersion_;
 }
 
 void Updates::installUpdates()
