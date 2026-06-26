@@ -1,10 +1,14 @@
+// SPDX-FileCopyrightText: 2025 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
 #ifdef CHATTERINO_HAVE_PLUGINS
 #    include "buttons/SvgButton.hpp"
 #    include "widgets/BaseWindow.hpp"
 
-#    include <boost/signals2/connection.hpp>
+#    include <pajlada/signals/scoped-connection.hpp>
 #    include <QString>
 #    include <QTextBlockFormat>
 #    include <QTextCharFormat>
@@ -53,9 +57,9 @@ private:
     QString id;
     Plugin *plugin = nullptr;
 
-    boost::signals2::scoped_connection pluginDestroyConn;
-    boost::signals2::scoped_connection pluginLogConn;
-    boost::signals2::scoped_connection pluginLoadedConn;
+    pajlada::Signals::ScopedConnection pluginDestroyConn;
+    pajlada::Signals::ScopedConnection pluginLogConn;
+    pajlada::Signals::ScopedConnection pluginLoadedConn;
 
     bool isPinned = false;
 

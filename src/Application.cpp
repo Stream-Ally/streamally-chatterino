@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2017 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #include "Application.hpp"
 
 #include "common/Args.hpp"
@@ -12,8 +16,11 @@
 #include "controllers/ignores/IgnoreController.hpp"
 #include "controllers/notifications/NotificationController.hpp"
 #include "controllers/sound/ISoundController.hpp"
+#include "controllers/spellcheck/SpellChecker.hpp"
+#include "providers/bttv/BttvBadges.hpp"
 #include "providers/bttv/BttvEmotes.hpp"
 #include "providers/ffz/FfzEmotes.hpp"
+#include "providers/kick/KickChatServer.hpp"
 #include "providers/links/LinkResolver.hpp"
 #include "providers/pronouns/Pronouns.hpp"
 #include "providers/seventv/SeventvAPI.hpp"
@@ -84,7 +91,7 @@ ISoundController *makeSoundController(Settings &settings)
     switch (soundBackend)
     {
         case SoundBackend::Miniaudio: {
-            return new MiniaudioBackend();
+            return new MiniaudioBackend(settings.soundMiniaudioKeepEngineAlive);
         }
         break;
 
@@ -94,7 +101,7 @@ ISoundController *makeSoundController(Settings &settings)
         break;
 
         default: {
-            return new MiniaudioBackend();
+            return new MiniaudioBackend(settings.soundMiniaudioKeepEngineAlive);
         }
         break;
     }
@@ -103,7 +110,8 @@ ISoundController *makeSoundController(Settings &settings)
 BttvLiveUpdates *makeBttvLiveUpdates(Settings &settings)
 {
     bool enabled =
-        settings.enableBTTVLiveUpdates && settings.enableBTTVChannelEmotes;
+        settings.enableBTTVLiveUpdates &&
+        (settings.enableBTTVChannelEmotes || settings.showBadgesBttv);
 
     if (enabled)
     {
@@ -125,18 +133,6 @@ SeventvEventAPI *makeSeventvEventAPI(Settings &settings)
     }
 
     return nullptr;
-}
-
-eventsub::IController *makeEventSubController(Settings &settings)
-{
-    bool enabled = settings.enableExperimentalEventSub;
-
-    if (enabled)
-    {
-        return new eventsub::Controller();
-    }
-
-    return new eventsub::DummyController();
 }
 
 const QString TWITCH_PUBSUB_URL = "wss://pubsub-edge.twitch.tv";
@@ -171,7 +167,7 @@ Application::Application(Settings &_settings, const Paths &paths,
     , logging(new Logging(_settings))
     , emotes(new EmoteController)
     , accounts(new AccountController)
-    , eventSub(makeEventSubController(_settings))
+    , eventSub(new eventsub::Controller())
     , hotkeys(new HotkeyController)
     , windows(new WindowManager(_args, paths, _settings, *this->themes,
                                 *this->fonts))
@@ -185,6 +181,7 @@ Application::Application(Settings &_settings, const Paths &paths,
     , highlights(new HighlightController(_settings, this->accounts.get()))
     , twitch(new TwitchIrcServer)
     , ffzBadges(new FfzBadges)
+    , bttvBadges(new BttvBadges)
     , seventvBadges(new SeventvBadges)
     , seventvPaints(new SeventvPaints)
     , seventvPersonalEmotes(new SeventvPersonalEmotes)
@@ -204,6 +201,8 @@ Application::Application(Settings &_settings, const Paths &paths,
     , streamerMode(new StreamerMode)
     , twitchUsers(new TwitchUsers)
     , pronouns(new pronouns::Pronouns)
+    , spellChecker(new SpellChecker)
+    , kickChatServer(new KickChatServer)
 #ifdef CHATTERINO_HAVE_PLUGINS
     , plugins(new PluginController(paths))
 #endif
@@ -227,44 +226,7 @@ void Application::initialize(Settings &settings, const Paths &paths)
         getSettings()->currentVersion.getValue() != "" &&
         getSettings()->currentVersion.getValue() != CHATTERINO_VERSION)
     {
-#if defined(Q_OS_MACOS) && defined(Q_PROCESSOR_X86)
-        if (Version::instance().isRunningInRosetta())
-        {
-            auto *armBox =
-                new QMessageBox(QMessageBox::Information, "Chatterino 7",
-                                "It looks like you're running the x86-64 "
-                                "version of Chatterio on "
-                                "Apple Silicon (ARM) using Rosetta2 emulation. "
-                                "There are native "
-                                "builds "
-                                "available (suffix: arm64).<br>Do you want to "
-                                "switch to the native "
-                                "version?",
-                                QMessageBox::Yes | QMessageBox::No);
-            armBox->setAttribute(Qt::WA_DeleteOnClose);
-            if (armBox->exec() == QMessageBox::Yes)
-            {
-                auto url = [] {
-                    if (Modes::instance().isNightly)
-                    {
-                        return QStringLiteral(
-                            "https://github.com/SevenTV/chatterino7/"
-                            "releases/tag/nightly-build");
-                    }
-
-                    return QStringLiteral(
-                               "https://github.com/SevenTV/chatterino7/"
-                               "releases/tag/v") +
-                           Version::instance().version();
-                }();
-                QDesktopServices::openUrl(url);
-                _Exit(0);
-            }
-        }
-#endif
-
-        /*
-        auto *box = new QMessageBox(QMessageBox::Information, "StreamAlly's Chatterino",
+        auto *box = new QMessageBox(QMessageBox::Information, "StreamAlly Chatterino",
                                     "Show changelog?",
                                     QMessageBox::Yes | QMessageBox::No);
         box->setAttribute(Qt::WA_DeleteOnClose);
@@ -293,6 +255,7 @@ void Application::initialize(Settings &settings, const Paths &paths)
     this->seventvEmotes->loadGlobalEmotes();
 
     this->twitch->initialize();
+    this->kickChatServer->initialize();
 
     // Load live status
     this->notifications->initialize();
@@ -334,7 +297,6 @@ void Application::initialize(Settings &settings, const Paths &paths)
     {
         this->initNm(paths);
     }
-    this->twitchPubSub->initialize();
 
     this->twitch->initEventAPIs(this->bttvLiveUpdates.get(),
                                 this->seventvEventAPI.get());
@@ -468,6 +430,14 @@ FfzBadges *Application::getFfzBadges()
     assert(this->ffzBadges);
 
     return this->ffzBadges.get();
+}
+
+BttvBadges *Application::getBttvBadges()
+{
+    // BttvBadges handles its own locks, so we don't need to assert that this is called in the GUI thread
+    assert(this->bttvBadges);
+
+    return this->bttvBadges.get();
 }
 
 SeventvBadges *Application::getSeventvBadges()
@@ -664,6 +634,22 @@ eventsub::IController *Application::getEventSub()
     return this->eventSub.get();
 }
 
+SpellChecker *Application::getSpellChecker()
+{
+    assertInGuiThread();
+    assert(this->spellChecker);
+
+    return this->spellChecker.get();
+}
+
+KickChatServer *Application::getKickChatServer()
+{
+    assertInGuiThread();
+    assert(this->kickChatServer);
+
+    return this->kickChatServer.get();
+}
+
 void Application::aboutToQuit()
 {
     ABOUT_TO_QUIT.store(true);
@@ -716,6 +702,7 @@ void Application::stop()
     this->logging.reset();
     this->fonts.reset();
     this->themes.reset();
+    this->spellChecker.reset();
 
     STOPPED.store(true);
 }

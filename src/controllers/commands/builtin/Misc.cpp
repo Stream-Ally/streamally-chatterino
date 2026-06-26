@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2023 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #include "controllers/commands/builtin/Misc.hpp"
 
 #include "Application.hpp"
@@ -5,6 +9,7 @@
 #include "controllers/accounts/AccountController.hpp"
 #include "controllers/commands/CommandContext.hpp"
 #include "controllers/userdata/UserDataController.hpp"
+#include "providers/kick/KickChannel.hpp"
 #include "providers/twitch/api/Helix.hpp"
 #include "providers/twitch/TwitchAccount.hpp"
 #include "providers/twitch/TwitchChannel.hpp"
@@ -200,7 +205,41 @@ QString clip(const CommandContext &ctx)
         return "";
     }
 
-    ctx.twitchChannel->createClip();
+    QString title = "";
+    std::optional<int> duration = std::nullopt;
+    if (!ctx.words.empty())
+    {
+        QCommandLineParser parser;
+        parser.setSingleDashWordOptionMode(
+            QCommandLineParser::ParseAsLongOptions);
+        parser.setOptionsAfterPositionalArgumentsMode(
+            QCommandLineParser::ParseAsPositionalArguments);
+        parser.addPositionalArgument("title", "The title of the clip");
+
+        QCommandLineOption durationOption(
+            {"d", "duration"}, "The duration of the clip", "duration");
+        parser.addOptions({
+            durationOption,
+        });
+        parser.parse(ctx.words);
+
+        title = parser.positionalArguments().join(' ');
+
+        if (parser.isSet(durationOption))
+        {
+            bool ok = false;
+            duration = parser.value(durationOption).toInt(&ok);
+
+            if (!ok)
+            {
+                ctx.channel->addSystemMessage(
+                    "Could not parse clip duration to an integer.");
+                return "";
+            }
+        }
+    }
+
+    ctx.twitchChannel->createClip(title, duration);
 
     return "";
 }
@@ -299,6 +338,10 @@ QString streamlink(const CommandContext &ctx)
         {
             target = ctx.channel->getName();
         }
+        else if (ctx.kickChannel)
+        {
+            target = ctx.kickChannel->slug();
+        }
         else
         {
             ctx.channel->addSystemMessage(
@@ -310,7 +353,14 @@ QString streamlink(const CommandContext &ctx)
     }
 
     stripChannelName(target);
-    openStreamlinkForChannel(target);
+    if (ctx.kickChannel)
+    {
+        openStreamlinkForChannel(target, u"kick.com/");
+    }
+    else
+    {
+        openStreamlinkForChannel(target);
+    }
 
     return "";
 }

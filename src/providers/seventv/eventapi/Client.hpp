@@ -1,8 +1,13 @@
+// SPDX-FileCopyrightText: 2022 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
 #include "providers/liveupdates/BasicPubSubClient.hpp"
 // this needs to be included for the specialization
 // of std::hash for Subscription
+#include "providers/seventv/eventapi/Dispatch.hpp"  // for Twitch/KickUser
 #include "providers/seventv/eventapi/Subscription.hpp"
 
 #include <QPointer>
@@ -18,8 +23,8 @@ struct Dispatch;
 struct CosmeticCreateDispatch;
 struct EntitlementCreateDeleteDispatch;
 
-class Client : public BasicPubSubClient<Subscription>,
-               std::enable_shared_from_this<Client>
+class Client : public BasicPubSubClient<Subscription, Client>,
+               public std::enable_shared_from_this<Client>
 {
 public:
     Client(SeventvEventAPI &manager,
@@ -49,7 +54,7 @@ private:
     SeventvEventAPI &manager_;
 
     struct LastPersonalEmoteAssignment {
-        QString userName;
+        QVarLengthArray<User, 1> connections;
         QString emoteSetID;
         std::shared_ptr<const EmoteMap> emoteSet;
     };

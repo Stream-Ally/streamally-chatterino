@@ -1,11 +1,17 @@
+// SPDX-FileCopyrightText: 2018 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
 #include "widgets/BaseWindow.hpp"
 
 #include <pajlada/signals/signal.hpp>
+#include <QComboBox>
 #include <QFocusEvent>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QRadioButton>
 
 #include <optional>
@@ -34,6 +40,7 @@ namespace chatterino {
 
 class EditableModelView;
 class IndirectChannel;
+class MicroNotebook;
 class Channel;
 using ChannelPtr = std::shared_ptr<Channel>;
 
@@ -82,12 +89,24 @@ private:
 
         detail::AutoCheckedRadioButton *automod;
         QLabel *automodLabel;
+
+        QLineEdit *kickName;
+
+        QListWidget *multiView;
+        QComboBox *multiIndicatorMode;
+
+        MicroNotebook *notebook;
+        QWidget *twitchPage;
+        QWidget *kickPage;
+        QWidget *multiPage;
     } ui_{};
 
     EventFilter tabFilter_;
 
     ChannelPtr selectedChannel_;
     bool hasSelectedChannel_ = false;
+
+    size_t mcChannelIndex = 0;
 
     void ok();
     friend class EventFilter;

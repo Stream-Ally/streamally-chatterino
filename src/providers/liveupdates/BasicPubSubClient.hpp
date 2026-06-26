@@ -1,15 +1,14 @@
+// SPDX-FileCopyrightText: 2022 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
 #include "common/QLogging.hpp"
-#include "providers/liveupdates/BasicPubSubWebsocket.hpp"
-#include "singletons/Settings.hpp"
+#include "common/websockets/WebSocketPool.hpp"
+#include "debug/AssertInGuiThread.hpp"
 #include "util/DebugCount.hpp"
-#include "util/Helpers.hpp"
 
-#include <pajlada/signals/signal.hpp>
-
-#include <atomic>
-#include <chrono>
 #include <unordered_set>
 
 namespace chatterino {
@@ -25,49 +24,66 @@ namespace chatterino {
  *
  * @tparam Subscription see BasicPubSubManager
  */
-template <typename Subscription>
+template <typename SubscriptionT, typename Derived>
 class BasicPubSubClient
-    : public std::enable_shared_from_this<BasicPubSubClient<Subscription>>
 {
 public:
+    using Subscription = SubscriptionT;
+
     // The maximum amount of subscriptions this connections can handle
     const size_t maxSubscriptions;
 
-    BasicPubSubClient(liveupdates::WebsocketClient &websocketClient,
-                      liveupdates::WebsocketHandle handle,
-                      size_t maxSubscriptions = 100)
+    BasicPubSubClient(size_t maxSubscriptions = 100)
         : maxSubscriptions(maxSubscriptions)
-        , websocketClient_(websocketClient)
-        , handle_(std::move(handle))
     {
     }
 
-    virtual ~BasicPubSubClient() = default;
-
+    ~BasicPubSubClient() = default;
     BasicPubSubClient(const BasicPubSubClient &) = delete;
     BasicPubSubClient(const BasicPubSubClient &&) = delete;
     BasicPubSubClient &operator=(const BasicPubSubClient &) = delete;
     BasicPubSubClient &operator=(const BasicPubSubClient &&) = delete;
 
-protected:
-    virtual void onConnectionEstablished()
+    /// The websocket handshake completed.
+    ///
+    /// Called from the manager in the GUI thread.
+    void onOpen()
+    {
+        assertInGuiThread();
+        this->open_ = true;
+    }
+
+    /// A message has been received.
+    ///
+    /// Called from the websocket thread.
+    void onMessage(const QByteArray & /*msg*/)
     {
     }
 
-    bool send(const char *payload)
+    void close()
     {
-        liveupdates::WebsocketErrorCode ec;
-        this->websocketClient_.send(this->handle_, payload,
-                                    websocketpp::frame::opcode::text, ec);
+        this->ws_.close();
+    }
 
-        if (ec)
-        {
-            qCDebug(chatterinoLiveupdates) << "Error sending message" << payload
-                                           << ":" << ec.message().c_str();
-            return false;
-        }
+    void sendText(const QByteArray &data)
+    {
+        this->ws_.sendText(data);
+    }
 
-        return true;
+    QByteArray encodeSubscription(const Subscription &subscription)
+    {
+        return subscription.encodeSubscribe();
+    }
+
+    QByteArray encodeUnsubscription(const Subscription &subscription)
+    {
+        return subscription.encodeUnsubscribe();
+    }
+
+protected:
+    bool isSubscribed(const Subscription &subscription) const
+    {
+        return this->subscriptions_.contains(subscription);
     }
 
     /**
@@ -94,10 +110,11 @@ protected:
         }
 
         qCDebug(chatterinoLiveupdates) << "Subscribing to" << subscription;
-        DebugCount::increase("LiveUpdates subscriptions");
+        DebugCount::increase(DebugObject::LiveUpdatesSubscription);
 
-        QByteArray encoded = subscription.encodeSubscribe();
-        this->send(encoded);
+        QByteArray encoded =
+            static_cast<Derived *>(this)->encodeSubscription(subscription);
+        this->ws_.sendText(encoded);
 
         return true;
     }
@@ -114,75 +131,27 @@ protected:
         }
 
         qCDebug(chatterinoLiveupdates) << "Unsubscribing from" << subscription;
-        DebugCount::decrease("LiveUpdates subscriptions");
+        DebugCount::decrease(DebugObject::LiveUpdatesSubscription);
 
-        QByteArray encoded = subscription.encodeUnsubscribe();
-        this->send(encoded);
+        QByteArray encoded =
+            static_cast<Derived *>(this)->encodeUnsubscription(subscription);
+        this->ws_.sendText(encoded);
 
         return true;
     }
 
-    void close(const std::string &reason,
-               websocketpp::close::status::value code =
-                   websocketpp::close::status::normal)
+    bool isOpen() const
     {
-        liveupdates::WebsocketErrorCode ec;
-
-        auto conn = this->websocketClient_.get_con_from_hdl(this->handle_, ec);
-        if (ec)
-        {
-            qCDebug(chatterinoLiveupdates)
-                << "Error getting connection:" << ec.message().c_str();
-            return;
-        }
-
-        conn->close(code, reason, ec);
-        if (ec)
-        {
-            qCDebug(chatterinoLiveupdates)
-                << "Error closing:" << ec.message().c_str();
-            return;
-        }
+        return this->open_;
     }
-
-    bool isStarted() const
-    {
-        return this->started_.load(std::memory_order_acquire);
-    }
-
-    /**
-     * @brief Will be called when the clients has been requested to stop
-     *
-     * Derived classes can override this to implement their own shutdown behaviour
-     */
-    virtual void stopImpl()
-    {
-    }
-
-    liveupdates::WebsocketClient &websocketClient_;
 
 private:
-    void start()
-    {
-        assert(!this->isStarted());
-        this->started_.store(true, std::memory_order_release);
-        this->onConnectionEstablished();
-    }
-
-    void stop()
-    {
-        assert(this->isStarted());
-        this->started_.store(false, std::memory_order_release);
-
-        this->stopImpl();
-    }
-
-    liveupdates::WebsocketHandle handle_;
+    WebSocketHandle ws_;
     std::unordered_set<Subscription> subscriptions_;
 
-    std::atomic<bool> started_{false};
+    bool open_ = false;
 
-    template <typename ManagerSubscription>
+    template <typename ManagerSubscription, typename ManagerClient>
     friend class BasicPubSubManager;
 };
 

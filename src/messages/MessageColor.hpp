@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2017 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
 #include <QColor>
@@ -21,6 +25,10 @@ struct MessageColor {
     const QColor &getColor(const MessageColors &colors) const;
 
     QString toString() const;
+
+    QString toLua() const;
+    static MessageColor fromLua(const QString &spec,
+                                Type fallback = Type::Text);
 
     bool operator==(const MessageColor &other) const noexcept
     {

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2017 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
 #include "messages/Message.hpp"
@@ -20,11 +24,14 @@ namespace chatterino {
 class Split;
 class EmotePopup;
 class InputCompletionPopup;
+class InputHighlighter;
 class MessageView;
 class LabelButton;
 class ResizingTextEdit;
 class ChannelView;
 class SvgButton;
+class SpellCheckHighlighter;
+class Channel;
 enum class CompletionKind;
 
 class SplitInput : public BaseWidget
@@ -43,7 +50,7 @@ public:
     QString getInputText() const;
     void insertText(const QString &text);
 
-    void setReply(MessagePtr target);
+    void setReply(MessagePtr target, std::weak_ptr<Channel> channel);
     void setPlaceholderText(const QString &text);
 
     /**
@@ -76,7 +83,17 @@ public:
      */
     void setInputText(const QString &newInputText);
 
+    /**
+     * @brief Sets a formatted time to sendWaitStatus
+     *
+     * This method is used to update the text of the timeout and slow mode timer
+     */
+    void setSendWaitStatus(const QString &text) const;
+
     void triggerSelfMessageReceived();
+
+    std::optional<bool> checkSpellingOverride() const;
+    void setCheckSpellingOverride(std::optional<bool> override);
 
     pajlada::Signals::Signal<const QString &> textChanged;
     pajlada::Signals::NoArgSignal selectionChanged;
@@ -102,10 +119,7 @@ protected:
     void addShortcuts() override;
     void initLayout();
     bool eventFilter(QObject *obj, QEvent *event) override;
-#ifdef DEBUG
-    bool keyPressedEventInstalled{};
-#endif
-    void installKeyPressedEvent();
+    void installTextEditEvents();
     void onCursorPositionChanged();
     void onTextChanged();
     void updateEmoteButton();
@@ -155,13 +169,16 @@ protected:
         ResizingTextEdit *textEdit;
         QLabel *textEditLength;
         LabelButton *sendButton;
+        QLabel *sendWaitStatus;
         SvgButton *emoteButton;
     } ui_;
 
     MessagePtr replyTarget_ = nullptr;
+    std::weak_ptr<Channel> replyChannel_;
     bool enableInlineReplying_;
 
     pajlada::Signals::SignalHolder managedConnections_;
+    pajlada::Signals::SignalHolder channelConnections_;
     QStringList prevMsg_;
     QString currMsg_;
     int prevIndex_ = 0;
@@ -188,10 +205,18 @@ protected:
 
     QPropertyAnimation backgroundColorAnimation;
 
+    std::optional<bool> checkSpellingOverride_;
+    bool shouldCheckSpelling() const;
+    void checkSpellingChanged();
+
+    InputHighlighter *inputHighlighter = nullptr;
+
     void updateFonts();
 
 private Q_SLOTS:
     void editTextChanged();
+
+    void updateChannel();
 
     friend class Split;
     friend class ReplyThreadPopup;

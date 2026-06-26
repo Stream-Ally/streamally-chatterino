@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2023 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #include "controllers/completion/TabCompletionModel.hpp"
 
 #include "Application.hpp"
@@ -75,7 +79,7 @@ std::optional<TabCompletionModel::SourceKind>
     TabCompletionModel::deduceSourceKind(const QString &query,
                                          bool isFirstWord) const
 {
-    if (query.length() < 2 || !this->channel_.isTwitchChannel())
+    if (query.length() < 2 || !this->channel_.isTwitchOrKickChannel())
     {
         return std::nullopt;
     }

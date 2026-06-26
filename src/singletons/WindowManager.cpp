@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2017 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #include "singletons/WindowManager.hpp"
 
 #include "Application.hpp"
@@ -5,12 +9,15 @@
 #include "common/QLogging.hpp"
 #include "debug/AssertInGuiThread.hpp"
 #include "messages/MessageElement.hpp"
+#include "providers/kick/KickChannel.hpp"
+#include "providers/kick/KickChatServer.hpp"
 #include "providers/twitch/TwitchIrcServer.hpp"
 #include "singletons/Paths.hpp"
 #include "singletons/Settings.hpp"
 #include "singletons/Theme.hpp"
 #include "util/CombinePath.hpp"
 #include "util/FilesystemHelpers.hpp"
+#include "util/MultiChannel.hpp"
 #include "util/SignalListener.hpp"
 #include "widgets/AccountSwitchPopup.hpp"
 #include "widgets/dialogs/SettingsDialog.hpp"
@@ -135,6 +142,7 @@ WindowManager::WindowManager(const Args &appArgs_, const Paths &paths,
     this->updateWordTypeMaskListener.add(settings.showBadgesVanity);
     this->updateWordTypeMaskListener.add(settings.showBadgesChatterino);
     this->updateWordTypeMaskListener.add(settings.showBadgesFfz);
+    this->updateWordTypeMaskListener.add(settings.showBadgesBttv);
     this->updateWordTypeMaskListener.add(settings.showBadgesSevenTV);
     this->updateWordTypeMaskListener.add(settings.enableEmoteImages);
     this->updateWordTypeMaskListener.add(settings.lowercaseDomains);
@@ -151,6 +159,8 @@ WindowManager::WindowManager(const Args &appArgs_, const Paths &paths,
     this->forceLayoutChannelViewsListener.add(
         settings.removeSpacesBetweenEmotes);
     this->forceLayoutChannelViewsListener.add(settings.emoteScale);
+    this->forceLayoutChannelViewsListener.add(
+        settings.hideMessageTimestampsWhenLive);
     this->forceLayoutChannelViewsListener.add(settings.timestampFormat);
     this->forceLayoutChannelViewsListener.add(settings.collpseMessagesMinLines);
     this->forceLayoutChannelViewsListener.add(settings.enableRedeemedHighlight);
@@ -165,6 +175,8 @@ WindowManager::WindowManager(const Args &appArgs_, const Paths &paths,
         settings.streamerModeHideRestrictedUsers);
     this->forceLayoutChannelViewsListener.add(fonts.fontChanged);
 
+    this->layoutChannelViewsListener.add(
+        settings.hideMessageTimestampsWhenLive);
     this->layoutChannelViewsListener.add(settings.timestampFormat);
 
     this->invalidateChannelViewBuffersListener.add(settings.alternateMessages);
@@ -232,6 +244,7 @@ void WindowManager::updateWordTypeMask()
     flags.set(settings->showBadgesChatterino ? MEF::BadgeChatterino
                                              : MEF::None);
     flags.set(settings->showBadgesFfz ? MEF::BadgeFfz : MEF::None);
+    flags.set(settings->showBadgesBttv ? MEF::BadgeBttv : MEF::None);
     flags.set(settings->showBadgesSevenTV ? MEF::BadgeSevenTV : MEF::None);
 
     // username
@@ -638,6 +651,11 @@ std::set<QString> WindowManager::getVisibleChannelNames() const
     return visible;
 }
 
+std::span<Window *const> WindowManager::windows() const
+{
+    return this->windows_;
+}
+
 void WindowManager::encodeTab(SplitContainer *tab, bool isSelected,
                               QJsonObject &obj)
 {
@@ -680,6 +698,12 @@ void WindowManager::encodeNodeRecursively(SplitNode *node, QJsonObject &obj)
             QJsonArray filters;
             WindowManager::encodeFilters(node->getSplit(), filters);
             obj.insert("filters", filters);
+
+            auto spellOverride = node->getSplit()->checkSpellingOverride();
+            if (spellOverride)
+            {
+                obj["checkSpelling"] = *spellOverride;
+            }
         }
         break;
         case SplitNode::Type::HorizontalContainer:
@@ -744,6 +768,36 @@ void WindowManager::encodeChannel(IndirectChannel channel, QJsonObject &obj)
             obj.insert("name", channel.get()->getName());
         }
         break;
+        case Channel::Type::Kick: {
+            obj.insert("type", "kick");
+            obj.insert("name", channel.get()->getName());
+            auto *kc = dynamic_cast<KickChannel *>(channel.get().get());
+            if (kc)
+            {
+                obj.insert("roomID", static_cast<qint64>(kc->roomID()));
+                obj.insert("userID", static_cast<qint64>(kc->userID()));
+                obj.insert("channelID", static_cast<qint64>(kc->channelID()));
+            }
+        }
+        break;
+        case Channel::Type::Multi: {
+            obj.insert("type", "multi");
+            auto *mc = dynamic_cast<MultiChannel *>(channel.get().get());
+            if (mc)
+            {
+                QJsonArray children;
+                for (const auto &child : mc->channels())
+                {
+                    children.append(child.descriptor().toJson());
+                }
+                obj.insert("children", children);
+                obj.insert("indicatorMode",
+                           qmagicenum::enumNameString(mc->indicatorMode()));
+                obj.insert("activeIndex",
+                           static_cast<int32_t>(mc->activeChannelIndex()));
+            }
+        }
+        break;
 
         default:
             break;
@@ -761,43 +815,6 @@ void WindowManager::encodeFilters(Split *split, QJsonArray &arr)
     }
 }
 
-IndirectChannel WindowManager::decodeChannel(const SplitDescriptor &descriptor)
-{
-    assertInGuiThread();
-
-    if (descriptor.type_ == "twitch")
-    {
-        return getApp()->getTwitch()->getOrAddChannel(descriptor.channelName_);
-    }
-    else if (descriptor.type_ == "mentions")
-    {
-        return getApp()->getTwitch()->getMentionsChannel();
-    }
-    else if (descriptor.type_ == "watching")
-    {
-        return getApp()->getTwitch()->getWatchingChannel();
-    }
-    else if (descriptor.type_ == "whispers")
-    {
-        return getApp()->getTwitch()->getWhispersChannel();
-    }
-    else if (descriptor.type_ == "live")
-    {
-        return getApp()->getTwitch()->getLiveChannel();
-    }
-    else if (descriptor.type_ == "automod")
-    {
-        return getApp()->getTwitch()->getAutomodChannel();
-    }
-    else if (descriptor.type_ == "misc")
-    {
-        return getApp()->getTwitch()->getChannelOrEmpty(
-            descriptor.channelName_);
-    }
-
-    return Channel::getEmpty();
-}
-
 void WindowManager::closeAll()
 {
     assertInGuiThread();
@@ -805,7 +822,7 @@ void WindowManager::closeAll()
     qCDebug(chatterinoWindowmanager) << "Shutting down (closing windows)";
     this->shuttingDown_ = true;
 
-    for (Window *window : windows_)
+    for (Window *window : this->windows_)
     {
         closeWindowsRecursive(window);
     }

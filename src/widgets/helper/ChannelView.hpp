@@ -1,9 +1,12 @@
+// SPDX-FileCopyrightText: 2017 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
 #include "common/FlagsEnum.hpp"
 #include "messages/layouts/MessageLayoutContext.hpp"
 #include "messages/LimitedQueue.hpp"
-#include "messages/LimitedQueueSnapshot.hpp"
 #include "messages/MessageFlag.hpp"
 #include "messages/Selection.hpp"
 #include "util/ThreadGuard.hpp"
@@ -29,6 +32,8 @@ enum class HighlightState;
 
 class Channel;
 using ChannelPtr = std::shared_ptr<Channel>;
+
+enum class MessagePlatform : uint8_t;
 
 struct Message;
 using MessagePtr = std::shared_ptr<const Message>;
@@ -156,6 +161,22 @@ public:
     /// @see #channel()
     ChannelPtr underlyingChannel() const;
 
+    /// Same as #underlyingChannel() except that it returns the active channel
+    /// for MultiChannels.
+    ChannelPtr selectedChannel() const;
+
+    enum class InferChannel : uint8_t {
+        UnderlyingOnly,
+        SourceChannelIfAvailable,
+        SearchParentIfAvailable,
+    };
+
+    /// Infer the channel this message originates from.
+    /// In MultiChannels, this uses the best matching channel.
+    ChannelPtr inferChannel(
+        const Message &msg,
+        InferChannel mode = InferChannel::SourceChannelIfAvailable) const;
+
     /// @brief Set the channel this view is displaying
     ///
     /// @see #underlyingChannel()
@@ -178,7 +199,7 @@ public:
     /// Checks if this view has a #sourceChannel
     bool hasSourceChannel() const;
 
-    LimitedQueueSnapshot<MessageLayoutPtr> &getMessagesSnapshot();
+    std::vector<MessageLayoutPtr> &getMessagesSnapshot();
 
     void queueLayout();
     void invalidateBuffers();
@@ -193,8 +214,8 @@ public:
      * @param userName The login name of the user
      * @param alternativePopoutChannel Optional parameter containing the channel name to use for context
      **/
-    void showUserInfoPopup(const QString &userName,
-                           QString alternativePopoutChannel = QString());
+    void showUserInfoPopup(const QString &userName, MessagePlatform platform,
+                           const QString &alternativePopoutChannel = {});
 
     /**
      * @brief This method is meant to be used when filtering out channels.
@@ -241,11 +262,7 @@ protected:
     void paintEvent(QPaintEvent * /*event*/) override;
     void wheelEvent(QWheelEvent *event) override;
 
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     void enterEvent(QEnterEvent * /*event*/) override;
-#else
-    void enterEvent(QEvent * /*event*/) override;
-#endif
     void leaveEvent(QEvent * /*event*/) override;
 
     bool event(QEvent *event) override;
@@ -286,9 +303,8 @@ private:
 
     void performLayout(bool causedByScrollbar = false,
                        bool causedByShow = false);
-    void layoutVisibleMessages(
-        const LimitedQueueSnapshot<MessageLayoutPtr> &messages);
-    void updateScrollbar(const LimitedQueueSnapshot<MessageLayoutPtr> &messages,
+    void layoutVisibleMessages(const std::vector<MessageLayoutPtr> &messages);
+    void updateScrollbar(const std::vector<MessageLayoutPtr> &messages,
                          bool causedByScrollbar, bool causedByShow);
 
     void drawMessages(QPainter &painter, const QRect &area);
@@ -327,6 +343,9 @@ private:
     void showReplyThreadPopup(const MessagePtr &message);
     bool canReplyToMessages() const;
 
+    /// Returns the selected channel as well as enabled flags.
+    std::pair<Channel *, MessageElementFlags> getMultiChannelInfo() const;
+
     void updateID();
     ChannelViewID id_{};
 
@@ -354,7 +373,7 @@ private:
     MessageLayoutPtr lastReadMessage_;
 
     ThreadGuard snapshotGuard_;
-    LimitedQueueSnapshot<MessageLayoutPtr> snapshot_;
+    std::vector<MessageLayoutPtr> snapshot_;
 
     /// @brief The backing (internal) channel
     ///

@@ -34,9 +34,9 @@ if ($null -eq $Env:VCToolsRedistDir) {
     Write-Error "VCToolsRedistDir is not set. Forgot to set Visual Studio environment variables?";
     exit 1
 }
-Copy-Item "$Env:VCToolsRedistDir\vc_redist.x64.exe" .;
+Copy-Item "$Env:VCToolsRedistDir\vc_redist.$architecture.exe" .;
 
-$VCRTVersion = (Get-Item "$Env:VCToolsRedistDir\vc_redist.x64.exe").VersionInfo;
+$VCRTVersion = (Get-Item "$Env:VCToolsRedistDir\vc_redist.$architecture.exe").VersionInfo;
 
 # Build the installer
 ISCC `
@@ -44,6 +44,7 @@ ISCC `
     /DINSTALLER_BASE_NAME="$installerBaseName" `
     /DSHIPPED_VCRT_MINOR="$($VCRTVersion.FileMinorPart)" `
     /DSHIPPED_VCRT_VERSION="$($VCRTVersion.FileDescription)" `
+    /DVCRT_ARCH="$architecture" `
     $defines `
     /O. `
     "$PSScriptRoot\chatterino-installer.iss";

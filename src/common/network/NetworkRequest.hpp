@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2018 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
 #include "common/network/NetworkCommon.hpp"
@@ -46,6 +50,9 @@ public:
     NetworkRequest onError(NetworkErrorCallback cb) &&;
     NetworkRequest onSuccess(NetworkSuccessCallback cb) &&;
     NetworkRequest finally(NetworkFinallyCallback cb) &&;
+
+    /// Hide the request body in logs
+    NetworkRequest hideRequestBody() &&;
 
     NetworkRequest payload(const QByteArray &payload) &&;
     NetworkRequest cache() &&;

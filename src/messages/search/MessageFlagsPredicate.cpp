@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2021 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #include "messages/search/MessageFlagsPredicate.hpp"
 
 namespace chatterino {
@@ -62,6 +66,14 @@ MessageFlagsPredicate::MessageFlagsPredicate(const QString &flags, bool negate)
         {
             this->flags_.set(MessageFlag::SharedMessage);
         }
+        else if (flag == "watch-streak")
+        {
+            this->flags_.set(MessageFlag::WatchStreak);
+        }
+        else if (flag == "announcement")
+        {
+            this->flags_.set(MessageFlag::Announcement);
+        }
     }
 }
 
@@ -71,10 +83,10 @@ bool MessageFlagsPredicate::appliesToImpl(const Message &message)
     if (this->flags_.has(MessageFlag::System) &&
         !this->flags_.has(MessageFlag::Timeout))
     {
-        return message.flags.hasAny(flags_) &&
+        return message.flags.hasAny(this->flags_) &&
                !message.flags.has(MessageFlag::Timeout);
     }
-    return message.flags.hasAny(flags_);
+    return message.flags.hasAny(this->flags_);
 }
 
 }  // namespace chatterino

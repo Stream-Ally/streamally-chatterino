@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2023 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #include "controllers/completion/sources/EmoteSource.hpp"
 
 #include "Application.hpp"
@@ -7,6 +11,9 @@
 #include "providers/bttv/BttvEmotes.hpp"
 #include "providers/emoji/Emojis.hpp"
 #include "providers/ffz/FfzEmotes.hpp"
+#include "providers/kick/KickAccount.hpp"
+#include "providers/kick/KickChannel.hpp"
+#include "providers/kick/KickChatServer.hpp"
 #include "providers/seventv/SeventvEmotes.hpp"
 #include "providers/seventv/SeventvPersonalEmotes.hpp"
 #include "providers/twitch/TwitchAccount.hpp"
@@ -107,7 +114,7 @@ void EmoteSource::initializeFromChannel(const Channel *channel)
             addEmotes(emotes, **user->accessEmotes(), "Twitch Emote");
 
             for (const auto &map :
-                 app->getSeventvPersonalEmotes()->getEmoteSetsForUser(
+                 app->getSeventvPersonalEmotes()->getEmoteSetsForTwitchUser(
                      app->getAccounts()->twitch.getCurrent()->getUserId()))
             {
                 addEmotes(emotes, *map, "Personal 7TV");
@@ -127,7 +134,26 @@ void EmoteSource::initializeFromChannel(const Channel *channel)
                 addEmotes(emotes, *seventv, "Channel 7TV");
             }
         }
+    }
 
+    const auto *kickChannel = dynamic_cast<const KickChannel *>(channel);
+    if (kickChannel)
+    {
+        const auto list =
+            app->getSeventvPersonalEmotes()->getEmoteSetsForKickUser(
+                app->getAccounts()->kick.current()->userID());
+        for (const auto &map : list)
+        {
+            addEmotes(emotes, *map, "Personal 7TV");
+        }
+
+        addEmotes(emotes, *kickChannel->seventvEmotes(), "Channel 7TV");
+        addEmotes(emotes, *getApp()->getKickChatServer()->globalEmotes(),
+                  "Kick Emote");
+    }
+
+    if (channel->isTwitchOrKickChannel())
+    {
         if (auto bttvG = app->getBttvEmotes()->emotes())
         {
             addEmotes(emotes, *bttvG, "Global BetterTTV");

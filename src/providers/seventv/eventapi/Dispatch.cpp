@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2022 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #include "providers/seventv/eventapi/Dispatch.hpp"
 
 #include "providers/seventv/SeventvEmotes.hpp"
@@ -6,6 +10,8 @@
 #include <QJsonArray>
 
 #include <utility>
+
+using namespace Qt::Literals;
 
 namespace chatterino::seventv::eventapi {
 
@@ -108,6 +114,18 @@ bool CosmeticCreateDispatch::validate() const
     return !this->data.empty() && this->kind != CosmeticKind::INVALID;
 }
 
+TwitchUser::TwitchUser(const QJsonObject &connection)
+    : id(connection["id"_L1].toString())
+    , userName(connection["username"_L1].toString())
+{
+}
+
+KickUser::KickUser(const QJsonObject &connection)
+    : id(connection["id"_L1].toString().toULongLong())
+    , userName(connection["username"_L1].toString().toLower())
+{
+}
+
 EntitlementCreateDeleteDispatch::EntitlementCreateDeleteDispatch(
     const Dispatch &dispatch)
 {
@@ -116,23 +134,28 @@ EntitlementCreateDeleteDispatch::EntitlementCreateDeleteDispatch(
     this->kind = qmagicenum::enumCast<CosmeticKind>(obj["kind"].toString())
                      .value_or(CosmeticKind::INVALID);
 
-    const auto userConnections = obj["user"]["connections"].toArray();
-    for (const auto &connectionJson : userConnections)
+    const auto userObj = obj["user"_L1].toObject();
+    this->seventvUsername = userObj["username"_L1].toString();
+    const auto userConnections = userObj["connections"_L1].toArray();
+    for (const auto connectionJson : userConnections)
     {
         const auto connection = connectionJson.toObject();
-        if (connection["platform"].toString() == "TWITCH")
+        auto platform = connection["platform"_L1].toString();
+        if (platform == u"TWITCH")
         {
-            this->userID = connection["id"].toString();
-            this->userName = connection["username"].toString();
-            break;
+            this->connections.emplace_back(TwitchUser(connection));
+        }
+        else if (platform == u"KICK")
+        {
+            this->connections.emplace_back(KickUser(connection));
         }
     }
 }
 
 bool EntitlementCreateDeleteDispatch::validate() const
 {
-    return !this->userID.isEmpty() && !this->userName.isEmpty() &&
-           !this->refID.isEmpty() && this->kind != CosmeticKind::INVALID;
+    return !this->connections.empty() && !this->refID.isEmpty() &&
+           this->kind != CosmeticKind::INVALID;
 }
 
 EmoteSetCreateDispatch::EmoteSetCreateDispatch(const QJsonObject &emoteSet)

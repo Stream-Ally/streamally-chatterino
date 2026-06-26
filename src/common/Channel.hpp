@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2017 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
 #include "common/enums/MessageContext.hpp"
@@ -14,11 +18,17 @@
 
 #include <memory>
 #include <optional>
+#include <span>
 
 namespace chatterino {
 
 struct Message;
 using MessagePtr = std::shared_ptr<const Message>;
+using MessagePtrMut = std::shared_ptr<Message>;
+
+enum class MessagePlatform : uint8_t;
+
+class EmoteMap;
 
 class Channel : public std::enable_shared_from_this<Channel>, public MessageSink
 {
@@ -48,19 +58,16 @@ public:
         TwitchAutomod,
         /// TwitchEnd
         TwitchEnd,
+        Kick,
         /// Misc
         Misc,
+        Multi,
     };
 
     explicit Channel(const QString &name, Type type);
     ~Channel() override;
 
     // SIGNALS
-    pajlada::Signals::Signal<const QString &, const QString &, bool &>
-        sendMessageSignal;
-    pajlada::Signals::Signal<const QString &, const QString &, const QString &,
-                             bool &>
-        sendReplySignal;
     pajlada::Signals::Signal<MessagePtr &, std::optional<MessageFlags>>
         messageAppended;
     pajlada::Signals::Signal<std::vector<MessagePtr> &> messagesAddedAtStart;
@@ -69,7 +76,6 @@ public:
         messageReplaced;
     /// Invoked when some number of messages were filled in using time received
     pajlada::Signals::Signal<const std::vector<MessagePtr> &> filledInMessages;
-    pajlada::Signals::NoArgSignal destroyed;
     pajlada::Signals::NoArgSignal displayNameChanged;
     pajlada::Signals::NoArgSignal messagesCleared;
 
@@ -78,8 +84,22 @@ public:
     virtual const QString &getDisplayName() const;
     virtual const QString &getLocalizedName() const;
     bool isTwitchChannel() const;
+    bool isKickChannel() const;
+    bool isTwitchOrKickChannel() const;
     virtual bool isEmpty() const;
-    LimitedQueueSnapshot<MessagePtr> getMessageSnapshot();
+
+    std::vector<MessagePtr> getMessageSnapshot() const;
+    std::vector<MessagePtr> getMessageSnapshot(size_t nItems) const;
+
+    /// Essentially the same as #getMessageSnapshot(size_t), but the returned
+    /// vector holds `std::shared_ptr<Message>`. This should only be used in
+    /// plugins, because they take messages as `Message` but check that they're
+    /// frozen.
+    std::vector<MessagePtrMut> getMessageSnapshotMut(size_t nItems) const;
+
+    /// Returns the last message (the one at the bottom). If the channel has no
+    /// messages, this will return an empty shared pointer.
+    MessagePtr getLastMessage() const;
 
     // MESSAGES
     // overridingFlags can be filled in with flags that should be used instead
@@ -105,12 +125,16 @@ public:
                         const MessagePtr &replacement);
     void disableMessage(const QString &messageID);
 
+    void mergeFrom(std::span<std::span<const MessagePtr>> sources);
+
     /// Removes all messages from this channel and invokes #messagesCleared
     void clearMessages();
 
     MessagePtr findMessageByID(QStringView messageID) final;
 
     bool hasMessages() const;
+
+    size_t countMessages() const;
 
     void applySimilarityFilters(const MessagePtr &message) const final;
 
@@ -133,6 +157,13 @@ public:
 
     static std::shared_ptr<Channel> getEmpty();
 
+    /// Update the user's last message and insert the personal emotes if necessary.
+    void upsertPersonalSeventvEmotes(
+        const QString &userLogin,
+        const std::shared_ptr<const EmoteMap> &emoteMap);
+
+    MessagePlatform messagePlatform() const;
+
     TabCompletionModel *completionModel;
     QDate lastDate_;
 
@@ -142,11 +173,24 @@ protected:
     QString platform_;
 
 private:
+    bool canRecurse() const noexcept;
+
     const QString name_;
     LimitedQueue<MessagePtr> messages_;
     Type type_;
     bool anythingLogged_ = false;
+
+    /// Recursion count for message signals.
+    ///
+    /// This is intended to prevent _trivial_ infinite recursion of signals
+    /// (e.g. unconditionally adding a message in `messageAppended`). It is not
+    /// intended to prevent all infinite recursion. That will still crash the
+    /// program.
+    uint8_t recursionCount_ = 0;
+
     QTimer clearCompletionModelTimer_;
+
+    MessagePlatform messagePlatform_;
 };
 
 using ChannelPtr = std::shared_ptr<Channel>;

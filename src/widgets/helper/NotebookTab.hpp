@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2016 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
 #include "common/Common.hpp"
@@ -98,11 +102,7 @@ protected:
     void mousePressEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
     void mouseDoubleClickEvent(QMouseEvent *event) override;
-#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
     void enterEvent(QEnterEvent *event) override;
-#else
-    void enterEvent(QEvent *event) override;
-#endif
     void leaveEvent(QEvent *) override;
 
     void dragEnterEvent(QDragEnterEvent *event) override;
@@ -135,6 +135,8 @@ private:
     void removeHighlightSource(const ChannelView::ChannelViewID &source);
     void updateHighlightStateDueSourcesChange();
 
+    void recreateCloseMultipleTabsMenu(NotebookTabLocation tabLocation);
+
     QPropertyAnimation positionChangedAnimation_;
     QPoint positionAnimationDesiredPoint_;
 
@@ -162,6 +164,9 @@ private:
     int growWidth_ = 0;
 
     QMenu menu_;
+    QMenu *closeMultipleTabsMenu_{};
+    QAction *closeTabsBeforeSelectedAction_{};
+    QAction *closeTabsAfterSelectedAction_{};
 
     pajlada::Signals::SignalHolder managedConnections_;
 };

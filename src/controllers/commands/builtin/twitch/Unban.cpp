@@ -1,9 +1,14 @@
+// SPDX-FileCopyrightText: 2023 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #include "controllers/commands/builtin/twitch/Unban.hpp"
 
 #include "Application.hpp"
 #include "common/Channel.hpp"
 #include "common/QLogging.hpp"
 #include "controllers/accounts/AccountController.hpp"
+#include "controllers/commands/builtin/kick/ModerationActions.hpp"
 #include "controllers/commands/CommandContext.hpp"
 #include "controllers/commands/common/ChannelAction.hpp"
 #include "providers/twitch/api/Helix.hpp"
@@ -85,6 +90,10 @@ namespace chatterino::commands {
 
 QString unbanUser(const CommandContext &ctx)
 {
+    if (ctx.kickChannel)
+    {
+        return doKickUnban(ctx);
+    }
     const auto command = ctx.words.at(0).toLower();
     const auto usage =
         QStringLiteral(

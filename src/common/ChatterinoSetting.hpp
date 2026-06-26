@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2019 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
 #include "util/QMagicEnum.hpp"
@@ -49,7 +53,6 @@ public:
     }
 
     using pajlada::Settings::Setting<Type>::operator==;
-    using pajlada::Settings::Setting<Type>::operator!=;
 
     using pajlada::Settings::Setting<Type>::operator Type;
 };
@@ -58,6 +61,7 @@ using BoolSetting = ChatterinoSetting<bool>;
 using FloatSetting = ChatterinoSetting<float>;
 using DoubleSetting = ChatterinoSetting<double>;
 using IntSetting = ChatterinoSetting<int>;
+using UInt64Setting = ChatterinoSetting<uint64_t>;
 using StringSetting = ChatterinoSetting<std::string>;
 using QStringSetting = ChatterinoSetting<QString>;
 using QSizeSetting = ChatterinoSetting<QSize>;
@@ -143,7 +147,6 @@ public:
     Enum defaultValue;
 
     using pajlada::Settings::Setting<QString>::operator==;
-    using pajlada::Settings::Setting<QString>::operator!=;
 
     using pajlada::Settings::Setting<QString>::operator QString;
 };

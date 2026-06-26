@@ -5,11 +5,11 @@ set -ex
 # Prefix for where to find the ARM64 library
 arm64_homebrew_dir="/opt/homebrew"
 # Prefix for where to find the x86 library
-x86_64_homebrew_dir="/opt/homebrew-x86_64"
+x86_64_homebrew_dir="/usr/local"
  # Directory where we place the finished universal library
 universal_lib_dir="/opt/universal-lib"
 
-export HOMEBREW_DEVELOPER=1
+# export HOMEBREW_DEVELOPER=1
 
 # args: path-to-library (in homebrew dir)
 c2-make-universal-dylib() {
@@ -56,23 +56,23 @@ c2-make-universal-dylib() {
     ln -v -s "${_universal_lib}" "${_override_lib}"
 }
 
-sudo mkdir "$x86_64_homebrew_dir"
+# sudo mkdir "$x86_64_homebrew_dir"
 sudo mkdir "$universal_lib_dir"
 
 sudo chown -R $USER "$universal_lib_dir"
 
 echo "Installing x86_64 brew"
-sudo curl -L https://github.com/Homebrew/brew/tarball/master | sudo tar xz --strip 1 -C "$x86_64_homebrew_dir"
-sudo chown -R $USER "$x86_64_homebrew_dir"
+arch -x86_64 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
 echo "Installing ARM dependencies"
+brew update
 brew install "$@"
 
 echo "Installing x86_64 dependencies"
+arch -x86_64 "$x86_64_homebrew_dir/bin/brew" update
 for dep in "$@"
 do
-    arch -x86_64 "$x86_64_homebrew_dir/bin/brew" fetch --force --bottle-tag=x86_64_sonoma "$dep"
-    arch -x86_64 "$x86_64_homebrew_dir/bin/brew" install $(arch -x86_64 "$x86_64_homebrew_dir/bin/brew" --cache --bottle-tag=x86_64_sonoma "$dep")
+    arch -x86_64 "$x86_64_homebrew_dir/bin/brew" install "$dep"
 done
 
 echo "Relinking boost libraries"
@@ -82,3 +82,6 @@ echo "Relinking OpenSSL 3 libcrypto"
 c2-make-universal-dylib lib/libcrypto.dylib
 echo "Relinking OpenSSL 3 libssl"
 c2-make-universal-dylib lib/libssl.dylib
+
+echo "Relinking Hunspell"
+c2-make-universal-dylib lib/libhunspell-1.7.0.dylib

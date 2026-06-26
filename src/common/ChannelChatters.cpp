@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2019 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #include "common/ChannelChatters.hpp"
 
 #include "common/Channel.hpp"
@@ -114,6 +118,11 @@ size_t ChannelChatters::colorsSize() const
 {
     auto size = this->chatterColors_.access()->size();
     return size;
+}
+
+void ChannelChatters::setMentionFlag(MessageElementFlag flag)
+{
+    this->mentionFlags_ = flag;
 }
 
 QColor ChannelChatters::getUserColor(const QString &user) const

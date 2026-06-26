@@ -1,48 +1,51 @@
+// SPDX-FileCopyrightText: 2022 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
-#include "providers/liveupdates/BasicPubSubClient.hpp"
-#include "providers/liveupdates/BasicPubSubManager.hpp"
-#include "providers/seventv/eventapi/Subscription.hpp"
-#include "util/QStringHash.hpp"
-
 #include <pajlada/signals/signal.hpp>
+#include <QString>
+
+#include <memory>
 
 namespace chatterino {
 
+namespace liveupdates {
+struct Diag;
+}  // namespace liveupdates
+
 namespace seventv::eventapi {
-struct Dispatch;
 struct EmoteAddDispatch;
 struct EmoteUpdateDispatch;
 struct EmoteRemoveDispatch;
 struct UserConnectionUpdateDispatch;
-struct CosmeticCreateDispatch;
-struct EntitlementCreateDeleteDispatch;
+struct PersonalEmoteSetAdded;
 }  // namespace seventv::eventapi
 
 class SeventvBadges;
 class SeventvPaints;
 class EmoteMap;
 
+class SeventvEventAPIPrivate;
 class SeventvEventAPI
-    : public BasicPubSubManager<seventv::eventapi::Subscription>
 {
     template <typename T>
-    using Signal =
-        pajlada::Signals::Signal<T>;  // type-id is vector<T, Alloc<T>>
+    using Signal = pajlada::Signals::Signal<T>;
 
 public:
     SeventvEventAPI(QString host,
                     std::chrono::milliseconds defaultHeartbeatInterval =
                         std::chrono::milliseconds(25000));
-
-    ~SeventvEventAPI() override;
+    ~SeventvEventAPI();
 
     struct {
-        Signal<seventv::eventapi::EmoteAddDispatch> emoteAdded;
-        Signal<seventv::eventapi::EmoteUpdateDispatch> emoteUpdated;
-        Signal<seventv::eventapi::EmoteRemoveDispatch> emoteRemoved;
-        Signal<seventv::eventapi::UserConnectionUpdateDispatch> userUpdated;
-        Signal<std::pair<QString, std::shared_ptr<const EmoteMap>>>
+        Signal<const seventv::eventapi::EmoteAddDispatch &> emoteAdded;
+        Signal<const seventv::eventapi::EmoteUpdateDispatch &> emoteUpdated;
+        Signal<const seventv::eventapi::EmoteRemoveDispatch &> emoteRemoved;
+        Signal<const seventv::eventapi::UserConnectionUpdateDispatch &>
+            userUpdated;
+        Signal<const seventv::eventapi::PersonalEmoteSetAdded &>
             personalEmoteSetAdded;
     } signals_;  // NOLINT(readability-identifier-naming)
 
@@ -61,6 +64,10 @@ public:
      * @param id Twitch channel id
      */
     void subscribeTwitchChannel(const QString &id);
+    void subscribeKickChannel(const QString &id);
+
+    void subscribePlatformChannel(const QString &userID,
+                                  const QString &platform);
 
     /** Unsubscribes from a user by its 7TV user id */
     void unsubscribeUser(const QString &id);
@@ -68,47 +75,27 @@ public:
     void unsubscribeEmoteSet(const QString &id);
     /** Unsubscribes from cosmetics and entitlements in a Twitch channel */
     void unsubscribeTwitchChannel(const QString &id);
+    void unsubscribeKickChannel(const QString &id);
 
-protected:
-    std::shared_ptr<BasicPubSubClient<seventv::eventapi::Subscription>>
-        createClient(liveupdates::WebsocketClient &client,
-                     websocketpp::connection_hdl hdl) override;
-    void onMessage(
-        websocketpp::connection_hdl hdl,
-        BasicPubSubManager<seventv::eventapi::Subscription>::WebsocketMessagePtr
-            msg) override;
+    void unsubscribePlatformChannel(const QString &userID,
+                                    const QString &platform);
+
+    /// Stop the manager
+    ///
+    /// Used in tests to check that connections are closed (through #diag()).
+    /// Otherwise, calling the destructor is sufficient.
+    void stop();
+
+    void reconnect();
+    void reconnectRandom();
+
+    /// Statistics about the opened/closed connections and received messages
+    ///
+    /// Used in tests.
+    const liveupdates::Diag &diag() const;
 
 private:
-    void handleDispatch(const seventv::eventapi::Dispatch &dispatch);
-
-    void onEmoteSetUpdate(const seventv::eventapi::Dispatch &dispatch);
-    void onUserUpdate(const seventv::eventapi::Dispatch &dispatch);
-    void onCosmeticCreate(
-        const seventv::eventapi::CosmeticCreateDispatch &cosmetic);
-    void onEntitlementCreate(
-        const seventv::eventapi::EntitlementCreateDeleteDispatch &entitlement);
-    void onEntitlementDelete(
-        const seventv::eventapi::EntitlementCreateDeleteDispatch &entitlement);
-    void onEmoteSetCreate(const seventv::eventapi::Dispatch &dispatch);
-
-    /** emote-set ids */
-    std::unordered_set<QString> subscribedEmoteSets_;
-    /** user ids */
-    std::unordered_set<QString> subscribedUsers_;
-    /** Twitch channel ids */
-    std::unordered_set<QString> subscribedTwitchChannels_;
-    std::chrono::milliseconds heartbeatInterval_;
-
-    struct LastPersonalEmoteAssignment {
-        QString userName;
-        QString emoteSetID;
-        std::shared_ptr<const EmoteMap> emoteSet;
-    };
-
-    /// This is a workaround for 7TV sending `CreateEntitlement` before
-    /// `UpdateEmoteSet`. We only upsert emotes when a user gets assigned a
-    /// new emote set, but in this case, we're upserting after updating as well.
-    std::optional<LastPersonalEmoteAssignment> lastPersonalEmoteAssignment_;
+    std::unique_ptr<SeventvEventAPIPrivate> private_;
 };
 
 }  // namespace chatterino

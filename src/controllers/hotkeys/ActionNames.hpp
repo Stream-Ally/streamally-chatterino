@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2021 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
 #include "controllers/hotkeys/HotkeyCategory.hpp"
@@ -37,7 +41,7 @@ struct ActionDefinition {
     uint8_t minCountArguments = 0;
 
     // maxCountArguments is the maximum amount of arguments the action accepts
-    uint8_t maxCountArguments = minCountArguments;
+    uint8_t maxCountArguments = this->minCountArguments;
 
     // possibleArguments is empty or contains all possible argument values,
     // it is an ordered mapping from option name (what the user sees) to
@@ -207,6 +211,30 @@ inline const std::map<HotkeyCategory, ActionDefinitionMap> actionNames{
                   "Should highlight sounds be enabled, disabled or toggled",
           }},
          {"openSubscriptionPage", ActionDefinition{"Open subscription page"}},
+         {"changeMultichannelContext",
+          ActionDefinition{
+              .displayName = "Change multi channel context",
+              .argumentDescription = "[{index} or next or prev. default: next]",
+              .minCountArguments = 1,
+              .maxCountArguments = 1,
+              .possibleArguments =
+                  {
+                      {"Next", {"next"}},
+                      {"Previous", {"prev"}},
+                      {"1st channel", {"0"}},
+                      {"2nd channel", {"1"}},
+                      {"3rd channel", {"2"}},
+                      {"4th channel", {"3"}},
+                      {"5th channel", {"4"}},
+                      {"6th channel", {"5"}},
+                      {"7th channel", {"6"}},
+                      {"8th channel", {"7"}},
+                      {"9th channel", {"8"}},
+                      {"10th channel", {"9"}},
+                  },
+              .argumentsPrompt = "Action:",
+              .argumentsPromptHover = "Direction or index to change context to",
+          }},
      }},
     {HotkeyCategory::SplitInput,
      {

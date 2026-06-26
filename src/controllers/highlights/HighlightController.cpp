@@ -1,16 +1,22 @@
+// SPDX-FileCopyrightText: 2018 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #include "controllers/highlights/HighlightController.hpp"
 
 #include "Application.hpp"
 #include "common/QLogging.hpp"
 #include "controllers/accounts/AccountController.hpp"
 #include "controllers/highlights/HighlightBadge.hpp"
+#include "controllers/highlights/HighlightCheck.hpp"
 #include "controllers/highlights/HighlightPhrase.hpp"
+#include "controllers/highlights/HighlightResult.hpp"
 #include "messages/Message.hpp"
 #include "messages/MessageBuilder.hpp"
 #include "providers/colors/ColorProvider.hpp"
-#include "providers/twitch/TwitchAccount.hpp"
+#include "providers/kick/KickAccount.hpp"
+#include "providers/twitch/TwitchAccount.hpp"  // IWYU pragma: keep
 #include "providers/twitch/TwitchBadge.hpp"
-#include "singletons/Paths.hpp"
 #include "singletons/Settings.hpp"
 
 namespace {
@@ -20,14 +26,14 @@ using namespace chatterino;
 auto highlightPhraseCheck(const HighlightPhrase &highlight) -> HighlightCheck
 {
     return HighlightCheck{
-        [highlight](const auto &args, const auto &badges,
+        [highlight](const auto &args, const auto &twitchBadges,
                     const auto &senderName, const auto &originalMessage,
                     const auto &flags,
                     const auto self) -> std::optional<HighlightResult> {
-            (void)args;        // unused
-            (void)badges;      // unused
-            (void)senderName;  // unused
-            (void)flags;       // unused
+            (void)args;          // unused
+            (void)twitchBadges;  // unused
+            (void)senderName;    // unused
+            (void)flags;         // unused
 
             if (self)
             {
@@ -71,10 +77,11 @@ void rebuildSubscriptionHighlights(Settings &settings,
         // The custom sub highlight color is handled in ColorProvider
 
         checks.emplace_back(HighlightCheck{
-            [=](const auto &args, const auto &badges, const auto &senderName,
-                const auto &originalMessage, const auto &flags,
+            [=](const auto &args, const auto &twitchBadges,
+                const auto &senderName, const auto &originalMessage,
+                const auto &flags,
                 const auto self) -> std::optional<HighlightResult> {
-                (void)badges;           // unused
+                (void)twitchBadges;     // unused
                 (void)senderName;       // unused
                 (void)originalMessage;  // unused
                 (void)flags;            // unused
@@ -117,10 +124,11 @@ void rebuildWhisperHighlights(Settings &settings,
         // The custom whisper highlight color is handled in ColorProvider
 
         checks.emplace_back(HighlightCheck{
-            [=](const auto &args, const auto &badges, const auto &senderName,
-                const auto &originalMessage, const auto &flags,
+            [=](const auto &args, const auto &twitchBadges,
+                const auto &senderName, const auto &originalMessage,
+                const auto &flags,
                 const auto self) -> std::optional<HighlightResult> {
-                (void)badges;           // unused
+                (void)twitchBadges;     // unused
                 (void)senderName;       // unused
                 (void)originalMessage;  // unused
                 (void)flags;            // unused
@@ -159,7 +167,7 @@ void rebuildReplyThreadHighlight(Settings &settings,
         auto highlightInMentions =
             settings.showThreadHighlightInMentions.getValue();
         checks.emplace_back(HighlightCheck{
-            [=](const auto & /*args*/, const auto & /*badges*/,
+            [=](const auto & /*args*/, const auto & /*twitchBadges*/,
                 const auto & /*senderName*/, const auto & /*originalMessage*/,
                 const auto &flags,
                 const auto self) -> std::optional<HighlightResult> {
@@ -199,6 +207,21 @@ void rebuildMessageHighlights(Settings &settings,
         checks.emplace_back(highlightPhraseCheck(highlight));
     }
 
+    auto kickUser = getApp()->getAccounts()->kick.current();
+    auto kickUsername = kickUser->username();
+    if (settings.enableSelfHighlight && !kickUsername.isEmpty() &&
+        !kickUser->isAnonymous())
+    {
+        HighlightPhrase highlight(
+            kickUsername, settings.showSelfHighlightInMentions,
+            settings.enableSelfHighlightTaskbar,
+            settings.enableSelfHighlightSound, false, false,
+            settings.selfHighlightSoundUrl.getValue(),
+            ColorProvider::instance().color(ColorType::SelfHighlight));
+
+        checks.emplace_back(highlightPhraseCheck(highlight));
+    }
+
     auto messageHighlights = settings.highlightedMessages.readOnly();
     for (const auto &highlight : *messageHighlights)
     {
@@ -217,7 +240,7 @@ void rebuildMessageHighlights(Settings &settings,
             ColorProvider::instance().color(ColorType::AutomodHighlight);
 
         checks.emplace_back(HighlightCheck{
-            [=](const auto & /*args*/, const auto & /*badges*/,
+            [=](const auto & /*args*/, const auto & /*twitchBadges*/,
                 const auto & /*senderName*/, const auto & /*originalMessage*/,
                 const auto &flags,
                 const auto /*self*/) -> std::optional<HighlightResult> {
@@ -254,11 +277,12 @@ void rebuildUserHighlights(Settings &settings,
 
         checks.emplace_back(HighlightCheck{
             [showInMentions](
-                const auto &args, const auto &badges, const auto &senderName,
-                const auto &originalMessage, const auto &flags,
+                const auto &args, const auto &twitchBadges,
+                const auto &senderName, const auto &originalMessage,
+                const auto &flags,
                 const auto self) -> std::optional<HighlightResult> {
                 (void)args;             //unused
-                (void)badges;           //unused
+                (void)twitchBadges;     //unused
                 (void)senderName;       //unused
                 (void)flags;            //unused
                 (void)originalMessage;  //unused
@@ -280,12 +304,12 @@ void rebuildUserHighlights(Settings &settings,
     for (const auto &highlight : *userHighlights)
     {
         checks.emplace_back(HighlightCheck{
-            [highlight](const auto &args, const auto &badges,
+            [highlight](const auto &args, const auto &twitchBadges,
                         const auto &senderName, const auto &originalMessage,
                         const auto &flags,
                         const auto self) -> std::optional<HighlightResult> {
                 (void)args;             // unused
-                (void)badges;           // unused
+                (void)twitchBadges;     // unused
                 (void)originalMessage;  // unused
                 (void)flags;            // unused
                 (void)self;             // unused
@@ -320,7 +344,7 @@ void rebuildBadgeHighlights(Settings &settings,
     for (const auto &highlight : *badgeHighlights)
     {
         checks.emplace_back(HighlightCheck{
-            [highlight](const auto &args, const auto &badges,
+            [highlight](const auto &args, const auto &twitchBadges,
                         const auto &senderName, const auto &originalMessage,
                         const auto &flags,
                         const auto self) -> std::optional<HighlightResult> {
@@ -330,7 +354,7 @@ void rebuildBadgeHighlights(Settings &settings,
                 (void)flags;            // unused
                 (void)self;             // unused
 
-                for (const Badge &badge : badges)
+                for (const TwitchBadge &badge : twitchBadges)
                 {
                     if (highlight.isMatch(badge))
                     {
@@ -358,89 +382,6 @@ void rebuildBadgeHighlights(Settings &settings,
 }  // namespace
 
 namespace chatterino {
-
-HighlightResult::HighlightResult(bool _alert, bool _playSound,
-                                 std::optional<QUrl> _customSoundUrl,
-                                 std::shared_ptr<QColor> _color,
-                                 bool _showInMentions)
-    : alert(_alert)
-    , playSound(_playSound)
-    , customSoundUrl(std::move(_customSoundUrl))
-    , color(std::move(_color))
-    , showInMentions(_showInMentions)
-{
-}
-
-HighlightResult HighlightResult::emptyResult()
-{
-    return {
-        false, false, std::nullopt, nullptr, false,
-    };
-}
-
-bool HighlightResult::operator==(const HighlightResult &other) const
-{
-    if (this->alert != other.alert)
-    {
-        return false;
-    }
-    if (this->playSound != other.playSound)
-    {
-        return false;
-    }
-    if (this->customSoundUrl != other.customSoundUrl)
-    {
-        return false;
-    }
-
-    if (this->color && other.color)
-    {
-        if (*this->color != *other.color)
-        {
-            return false;
-        }
-    }
-
-    if (this->showInMentions != other.showInMentions)
-    {
-        return false;
-    }
-
-    return true;
-}
-
-bool HighlightResult::operator!=(const HighlightResult &other) const
-{
-    return !(*this == other);
-}
-
-bool HighlightResult::empty() const
-{
-    return !this->alert && !this->playSound &&
-           !this->customSoundUrl.has_value() && !this->color &&
-           !this->showInMentions;
-}
-
-bool HighlightResult::full() const
-{
-    return this->alert && this->playSound && this->customSoundUrl.has_value() &&
-           this->color && this->showInMentions;
-}
-
-std::ostream &operator<<(std::ostream &os, const HighlightResult &result)
-{
-    os << "Alert: " << (result.alert ? "Yes" : "No") << ", "
-       << "Play sound: " << (result.playSound ? "Yes" : "No") << " ("
-       << (result.customSoundUrl
-               ? result.customSoundUrl->toString().toStdString()
-               : "")
-       << ")"
-       << ", "
-       << "Color: " << (result.color ? result.color->name().toStdString() : "")
-       << ", "
-       << "Show in mentions: " << (result.showInMentions ? "Yes" : "No");
-    return os;
-}
 
 HighlightController::HighlightController(Settings &settings,
                                          AccountController *accounts)
@@ -509,12 +450,26 @@ HighlightController::HighlightController(Settings &settings,
             this->rebuildChecks(settings);
         });
 
-    this->bConnections.emplace_back(
-        accounts->twitch.currentUserChanged.connect([this, &settings] {
+    this->signalHolder_.managedConnect(
+        accounts->twitch.currentUserChanged, [this, &settings] {
             qCDebug(chatterinoHighlights)
                 << "Rebuild checks because user swapped accounts";
             this->rebuildChecks(settings);
-        }));
+        });
+
+    this->signalHolder_.managedConnect(
+        accounts->twitch.currentUserNameChanged, [this, &settings] {
+            qCDebug(chatterinoHighlights)
+                << "Rebuild checks because user name changed";
+            this->rebuildChecks(settings);
+        });
+
+    this->signalHolder_.managedConnect(
+        accounts->kick.currentUserChanged, [this, &settings] {
+            qCDebug(chatterinoHighlights)
+                << "Rebuild checks because Kick user changed";
+            this->rebuildChecks(settings);
+        });
 
     this->rebuildChecks(settings);
 }
@@ -542,9 +497,9 @@ void HighlightController::rebuildChecks(Settings &settings)
 }
 
 std::pair<bool, HighlightResult> HighlightController::check(
-    const MessageParseArgs &args, const std::vector<Badge> &badges,
+    const MessageParseArgs &args, const std::vector<TwitchBadge> &twitchBadges,
     const QString &senderName, const QString &originalMessage,
-    const MessageFlags &messageFlags) const
+    const MessageFlags &messageFlags, MessagePlatform platform) const
 {
     bool highlighted = false;
     auto result = HighlightResult::emptyResult();
@@ -552,12 +507,25 @@ std::pair<bool, HighlightResult> HighlightController::check(
     // Access for checking
     const auto checks = this->checks_.accessConst();
 
-    auto currentUser = getApp()->getAccounts()->twitch.getCurrent();
-    auto self = (senderName == currentUser->getUserName());
+    bool self = false;
+    switch (platform)
+    {
+        case MessagePlatform::AnyOrTwitch: {
+            auto currentUser = getApp()->getAccounts()->twitch.getCurrent();
+            self = senderName == currentUser->getUserName();
+        }
+        break;
+        case MessagePlatform::Kick: {
+            auto kickUser = getApp()->getAccounts()->kick.current();
+            self =
+                !kickUser->isAnonymous() && senderName == kickUser->username();
+        }
+        break;
+    }
 
     for (const auto &check : *checks)
     {
-        if (auto checkResult = check.cb(args, badges, senderName,
+        if (auto checkResult = check.cb(args, twitchBadges, senderName,
                                         originalMessage, messageFlags, self);
             checkResult)
         {

@@ -7,6 +7,7 @@
 #include <QString>
 #include <QStringList>
 
+#include <chrono>
 #include <functional>
 #include <vector>
 
@@ -78,7 +79,8 @@ public:
                 (override));
 
     MOCK_METHOD(void, createClip,
-                (QString channelId, ResultCallback<HelixClip> successCallback,
+                (QString channelId, QString title, std::optional<int> duration,
+                 ResultCallback<HelixClip> successCallback,
                  std::function<void(HelixClipError, QString)> failureCallback,
                  std::function<void()> finallyCallback),
                 (override));
@@ -337,6 +339,20 @@ public:
          (FailureCallback<HelixWarnUserError, QString> failureCallback)),
         (override));  // /warn
 
+    // /monitor and /restrict
+    MOCK_METHOD(void, addSuspiciousUser,
+                (QString broadcasterID, QString moderatorID, QString userID,
+                 bool restricted, ResultCallback<> successCallback,
+                 FailureCallback<QString> failureCallback),
+                (override));  // /monitor and /restrict
+
+    // /unmonitor and /unrestrict
+    MOCK_METHOD(void, removeSuspiciousUser,
+                (QString broadcasterID, QString moderatorID, QString userID,
+                 ResultCallback<> successCallback,
+                 FailureCallback<QString> failureCallback),
+                (override));  // /unmonitor and /unrestrict
+
     // /w
     // The extra parenthesis around the failure callback is because its type
     // contains a comma
@@ -428,6 +444,52 @@ public:
          FailureCallback<QString> failureCallback),
         (override));
 
+    // create poll
+    MOCK_METHOD(void, createPoll,
+                (QString broadcasterID, QString title, QStringList choices,
+                 std::chrono::seconds duration, int pointsPerVote,
+                 ResultCallback<> successCallback,
+                 FailureCallback<QString> failureCallback),
+                (override));
+
+    // get polls
+    MOCK_METHOD(void, getPolls,
+                (QString broadcasterID, QStringList ids, int first,
+                 QString after, ResultCallback<HelixPolls> successCallback,
+                 FailureCallback<QString> failureCallback),
+                (override));
+
+    // end poll
+    MOCK_METHOD(void, endPoll,
+                (QString broadcasterID, QString id, bool immediatelyHide,
+                 ResultCallback<HelixPoll> successCallback,
+                 FailureCallback<QString> failureCallback),
+                (override));
+
+    // create prediction
+    MOCK_METHOD(void, createPrediction,
+                (QString broadcasterID, QString title, QStringList outcomes,
+                 std::chrono::seconds duration,
+                 ResultCallback<> successCallback,
+                 FailureCallback<QString> failureCallback),
+                (override));
+
+    // get predictions
+    MOCK_METHOD(void, getPredictions,
+                (QString broadcasterID, QStringList ids, int first,
+                 QString after,
+                 ResultCallback<HelixPredictions> successCallback,
+                 FailureCallback<QString> failureCallback),
+                (override));
+
+    // end prediction
+    MOCK_METHOD(void, endPrediction,
+                (QString broadcasterID, QString id, bool refundPoints,
+                 QString winningOutcomeID,
+                 ResultCallback<HelixPrediction> successCallback,
+                 FailureCallback<QString> failureCallback),
+                (override));
+
     MOCK_METHOD(void, createEventSubSubscription,
                 (const eventsub::SubscriptionRequest &request,
                  const QString &sessionID,
@@ -441,6 +503,36 @@ public:
                 (const QString &request, ResultCallback<> successCallback,
                  (FailureCallback<QString> failureCallback)),
                 (override));
+
+    MOCK_METHOD(
+        void, pinChatMessage,
+        (const QString &broadcasterID, const QString &moderatorID,
+         const QString &messageID, std::optional<std::chrono::seconds> duration,
+         ResultCallback<> successCallback,
+         (FailureCallback<HelixPinMessageError, QString>)failureCallback),
+        (override));
+
+    MOCK_METHOD(
+        void, updatePinnedChatMessage,
+        (const QString &broadcasterID, const QString &moderatorID,
+         const QString &messageID, std::optional<std::chrono::seconds> duration,
+         ResultCallback<> successCallback,
+         (FailureCallback<HelixPinMessageError, QString>)failureCallback),
+        (override));
+
+    MOCK_METHOD(
+        void, getPinnedChatMessage,
+        (const QString &broadcasterID, const QString &moderatorID,
+         ResultCallback<std::optional<HelixPinnedChatMessage>> successCallback,
+         FailureCallback<QString> failureCallback),
+        (override));
+
+    MOCK_METHOD(
+        void, unpinChatMessage,
+        (const QString &broadcasterID, const QString &moderatorID,
+         const QString &messageID, ResultCallback<> successCallback,
+         (FailureCallback<HelixUnpinMessageError, QString>)failureCallback),
+        (override));
 
     MOCK_METHOD(void, update, (QString clientId, QString oauthToken),
                 (override));

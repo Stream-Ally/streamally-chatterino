@@ -61,6 +61,8 @@ set(SOURCE_FILES
 
         common/websockets/WebSocketPool.cpp
         common/websockets/WebSocketPool.hpp
+        common/websockets/detail/BalancedResolverResults.cpp
+        common/websockets/detail/BalancedResolverResults.hpp
         common/websockets/detail/WebSocketConnection.cpp
         common/websockets/detail/WebSocketConnection.hpp
         common/websockets/detail/WebSocketConnectionImpl.cpp
@@ -79,6 +81,10 @@ set(SOURCE_FILES
         controllers/commands/builtin/chatterino/Debugging.hpp
         controllers/commands/builtin/Misc.cpp
         controllers/commands/builtin/Misc.hpp
+        controllers/commands/builtin/kick/KickRawEvent.cpp
+        controllers/commands/builtin/kick/KickRawEvent.hpp
+        controllers/commands/builtin/kick/ModerationActions.cpp
+        controllers/commands/builtin/kick/ModerationActions.hpp
         controllers/commands/builtin/twitch/AddModerator.cpp
         controllers/commands/builtin/twitch/AddModerator.hpp
         controllers/commands/builtin/twitch/AddVIP.cpp
@@ -99,6 +105,14 @@ set(SOURCE_FILES
         controllers/commands/builtin/twitch/GetModerators.hpp
         controllers/commands/builtin/twitch/GetVIPs.cpp
         controllers/commands/builtin/twitch/GetVIPs.hpp
+        controllers/commands/builtin/twitch/LowTrust.cpp
+        controllers/commands/builtin/twitch/LowTrust.hpp
+        controllers/commands/builtin/twitch/Pin.cpp
+        controllers/commands/builtin/twitch/Pin.hpp
+        controllers/commands/builtin/twitch/Poll.cpp
+        controllers/commands/builtin/twitch/Poll.hpp
+        controllers/commands/builtin/twitch/Prediction.cpp
+        controllers/commands/builtin/twitch/Prediction.hpp
         controllers/commands/builtin/twitch/Raid.cpp
         controllers/commands/builtin/twitch/Raid.hpp
         controllers/commands/builtin/twitch/RemoveModerator.cpp
@@ -170,6 +184,8 @@ set(SOURCE_FILES
         controllers/filters/lang/expressions/Expression.hpp
         controllers/filters/lang/expressions/BinaryOperation.cpp
         controllers/filters/lang/expressions/BinaryOperation.hpp
+        controllers/filters/lang/expressions/IdentifierExpression.cpp
+        controllers/filters/lang/expressions/IdentifierExpression.hpp
         controllers/filters/lang/expressions/ListExpression.cpp
         controllers/filters/lang/expressions/ListExpression.hpp
         controllers/filters/lang/expressions/RegexExpression.cpp
@@ -193,12 +209,15 @@ set(SOURCE_FILES
         controllers/highlights/HighlightBadge.hpp
         controllers/highlights/HighlightBlacklistModel.cpp
         controllers/highlights/HighlightBlacklistModel.hpp
+        controllers/highlights/HighlightCheck.hpp
         controllers/highlights/HighlightController.cpp
         controllers/highlights/HighlightController.hpp
         controllers/highlights/HighlightModel.cpp
         controllers/highlights/HighlightModel.hpp
         controllers/highlights/HighlightPhrase.cpp
         controllers/highlights/HighlightPhrase.hpp
+        controllers/highlights/HighlightResult.cpp
+        controllers/highlights/HighlightResult.hpp
         controllers/highlights/UserHighlightModel.cpp
         controllers/highlights/UserHighlightModel.hpp
 
@@ -243,13 +262,21 @@ set(SOURCE_FILES
         controllers/pings/MutedChannelModel.hpp
 
 
+        controllers/plugins/api/Accounts.cpp
+        controllers/plugins/api/Accounts.hpp
         controllers/plugins/api/ChannelRef.cpp
         controllers/plugins/api/ChannelRef.hpp
+        controllers/plugins/api/ConnectionHandle.cpp
+        controllers/plugins/api/ConnectionHandle.hpp
+        controllers/plugins/api/DebugLibrary.cpp
+        controllers/plugins/api/DebugLibrary.hpp
         controllers/plugins/api/EventType.hpp
         controllers/plugins/api/HTTPRequest.cpp
         controllers/plugins/api/HTTPRequest.hpp
         controllers/plugins/api/HTTPResponse.cpp
         controllers/plugins/api/HTTPResponse.hpp
+        controllers/plugins/api/Images.cpp
+        controllers/plugins/api/Images.hpp
         controllers/plugins/api/IOWrapper.cpp
         controllers/plugins/api/IOWrapper.hpp
         controllers/plugins/api/JSON.cpp
@@ -262,6 +289,10 @@ set(SOURCE_FILES
         controllers/plugins/api/Message.hpp
         controllers/plugins/api/WebSocket.cpp
         controllers/plugins/api/WebSocket.hpp
+        controllers/plugins/api/WindowManager.cpp
+        controllers/plugins/api/WindowManager.hpp
+        controllers/plugins/ConnectionManager.cpp
+        controllers/plugins/ConnectionManager.hpp
         controllers/plugins/LuaAPI.cpp
         controllers/plugins/LuaAPI.hpp
         controllers/plugins/LuaUtilities.cpp
@@ -270,8 +301,12 @@ set(SOURCE_FILES
         controllers/plugins/PluginController.hpp
         controllers/plugins/Plugin.cpp
         controllers/plugins/Plugin.hpp
+        controllers/plugins/PluginMeta.cpp
+        controllers/plugins/PluginMeta.hpp
         controllers/plugins/PluginPermission.cpp
         controllers/plugins/PluginPermission.hpp
+        controllers/plugins/PluginRef.cpp
+        controllers/plugins/PluginRef.hpp
         controllers/plugins/SolTypes.cpp
         controllers/plugins/SolTypes.hpp
 
@@ -280,6 +315,9 @@ set(SOURCE_FILES
         controllers/sound/MiniaudioBackend.hpp
         controllers/sound/NullBackend.cpp
         controllers/sound/NullBackend.hpp
+
+        controllers/spellcheck/SpellChecker.cpp
+        controllers/spellcheck/SpellChecker.hpp
 
         controllers/twitch/LiveController.cpp
         controllers/twitch/LiveController.hpp
@@ -344,28 +382,15 @@ set(SOURCE_FILES
         providers/NetworkConfigurationProvider.cpp
         providers/NetworkConfigurationProvider.hpp
 
-        providers/seventv/SeventvBadges.cpp
-        providers/seventv/SeventvBadges.hpp
-        providers/seventv/SeventvPaints.cpp
-        providers/seventv/SeventvPaints.hpp
-        providers/seventv/SeventvEmotes.cpp
-        providers/seventv/SeventvEmotes.hpp
-        providers/seventv/paints/Paint.hpp
-        providers/seventv/paints/Paint.cpp
-        providers/seventv/paints/PaintDropShadow.hpp
-        providers/seventv/paints/PaintDropShadow.cpp
-        providers/seventv/paints/LinearGradientPaint.hpp
-        providers/seventv/paints/LinearGradientPaint.cpp
-        providers/seventv/paints/RadialGradientPaint.hpp
-        providers/seventv/paints/RadialGradientPaint.cpp
-        providers/seventv/paints/UrlPaint.hpp
-        providers/seventv/paints/UrlPaint.cpp
-
+        providers/bttv/BttvBadges.cpp
+        providers/bttv/BttvBadges.hpp
         providers/bttv/BttvEmotes.cpp
         providers/bttv/BttvEmotes.hpp
         providers/bttv/BttvLiveUpdates.cpp
         providers/bttv/BttvLiveUpdates.hpp
 
+        providers/bttv/liveupdates/BttvLiveUpdateClient.cpp
+        providers/bttv/liveupdates/BttvLiveUpdateClient.hpp
         providers/bttv/liveupdates/BttvLiveUpdateMessages.cpp
         providers/bttv/liveupdates/BttvLiveUpdateMessages.hpp
         providers/bttv/liveupdates/BttvLiveUpdateSubscription.cpp
@@ -391,14 +416,35 @@ set(SOURCE_FILES
         providers/irc/IrcConnection2.cpp
         providers/irc/IrcConnection2.hpp
 
+        providers/kick/KickAccount.cpp
+        providers/kick/KickAccount.hpp
+        providers/kick/KickAccountManager.cpp
+        providers/kick/KickAccountManager.hpp
+        providers/kick/KickApi.cpp
+        providers/kick/KickApi.hpp
+        providers/kick/KickBadges.cpp
+        providers/kick/KickBadges.hpp
+        providers/kick/KickChannel.cpp
+        providers/kick/KickChannel.hpp
+        providers/kick/KickChatServer.cpp
+        providers/kick/KickChatServer.hpp
+        providers/kick/KickEmotes.cpp
+        providers/kick/KickEmotes.hpp
+        providers/kick/KickLiveController.cpp
+        providers/kick/KickLiveController.hpp
+        providers/kick/KickLiveUpdates.cpp
+        providers/kick/KickLiveUpdates.hpp
+        providers/kick/KickMessageBuilder.cpp
+        providers/kick/KickMessageBuilder.hpp
+
         providers/links/LinkInfo.cpp
         providers/links/LinkInfo.hpp
         providers/links/LinkResolver.cpp
         providers/links/LinkResolver.hpp
 
         providers/liveupdates/BasicPubSubClient.hpp
+        providers/liveupdates/BasicPubSubListener.hpp
         providers/liveupdates/BasicPubSubManager.hpp
-        providers/liveupdates/BasicPubSubWebsocket.hpp
 
         providers/pronouns/Pronouns.cpp
         providers/pronouns/Pronouns.hpp
@@ -421,8 +467,21 @@ set(SOURCE_FILES
         providers/seventv/SeventvEmotes.hpp
         providers/seventv/SeventvEventAPI.cpp
         providers/seventv/SeventvEventAPI.hpp
+        providers/seventv/SeventvPaints.cpp
+        providers/seventv/SeventvPaints.hpp
         providers/seventv/SeventvPersonalEmotes.cpp
         providers/seventv/SeventvPersonalEmotes.hpp
+
+        providers/seventv/paints/Paint.hpp
+        providers/seventv/paints/Paint.cpp
+        providers/seventv/paints/PaintDropShadow.hpp
+        providers/seventv/paints/PaintDropShadow.cpp
+        providers/seventv/paints/LinearGradientPaint.hpp
+        providers/seventv/paints/LinearGradientPaint.cpp
+        providers/seventv/paints/RadialGradientPaint.hpp
+        providers/seventv/paints/RadialGradientPaint.cpp
+        providers/seventv/paints/UrlPaint.hpp
+        providers/seventv/paints/UrlPaint.cpp
 
         providers/seventv/eventapi/Client.cpp
         providers/seventv/eventapi/Client.hpp
@@ -439,12 +498,9 @@ set(SOURCE_FILES
         providers/twitch/IrcMessageHandler.hpp
         providers/twitch/PubSubClient.cpp
         providers/twitch/PubSubClient.hpp
-        providers/twitch/PubSubClientOptions.hpp
-        providers/twitch/PubSubHelpers.hpp
         providers/twitch/PubSubManager.cpp
         providers/twitch/PubSubManager.hpp
         providers/twitch/PubSubMessages.hpp
-        providers/twitch/PubSubWebsocket.hpp
         providers/twitch/TwitchAccount.cpp
         providers/twitch/TwitchAccount.hpp
         providers/twitch/TwitchAccountManager.cpp
@@ -500,6 +556,8 @@ set(SOURCE_FILES
 
         singletons/CrashHandler.cpp
         singletons/CrashHandler.hpp
+        singletons/FileLogger.cpp
+        singletons/FileLogger.hpp
         singletons/Fonts.cpp
         singletons/Fonts.hpp
         singletons/ImageUploader.cpp
@@ -533,6 +591,12 @@ set(SOURCE_FILES
         util/AbandonObject.hpp
         util/AttachToConsole.cpp
         util/AttachToConsole.hpp
+        util/Backup.cpp
+        util/Backup.hpp
+        util/BadgeRegistry.cpp
+        util/BadgeRegistry.hpp
+        util/BoostJsonWrap.cpp
+        util/BoostJsonWrap.hpp
         util/CancellationToken.hpp
         util/ChannelHelpers.hpp
         util/Clipboard.cpp
@@ -553,6 +617,8 @@ set(SOURCE_FILES
         util/FuzzyConvert.hpp
         util/Helpers.cpp
         util/Helpers.hpp
+        util/HttpServer.cpp
+        util/HttpServer.hpp
         util/ImageUploader.cpp
         util/ImageUploader.hpp
         util/IncognitoBrowser.cpp
@@ -565,10 +631,15 @@ set(SOURCE_FILES
         util/LayoutHelper.hpp
         util/LoadPixmap.cpp
         util/LoadPixmap.hpp
+        util/MultiChannel.cpp
+        util/MultiChannel.hpp
         util/OnceFlag.cpp
         util/OnceFlag.hpp
         util/RapidjsonHelpers.cpp
         util/RapidjsonHelpers.hpp
+        util/RapidJsonSerializeQSize.hpp
+        util/RapidJsonSerializeQString.hpp
+        util/RapidJsonSerializeQStringView.hpp
         util/RatelimitBucket.cpp
         util/RatelimitBucket.hpp
         util/RenameThread.cpp
@@ -623,6 +694,8 @@ set(SOURCE_FILES
         widgets/FramelessEmbedWindow.hpp
         widgets/Label.cpp
         widgets/Label.hpp
+        widgets/MarkdownLabel.cpp
+        widgets/MarkdownLabel.hpp
         widgets/Notebook.cpp
         widgets/Notebook.hpp
         widgets/OverlayWindow.cpp
@@ -687,6 +760,8 @@ set(SOURCE_FILES
         widgets/dialogs/font/PreviewWidget.cpp
         widgets/dialogs/font/PreviewWidget.hpp
 
+        widgets/dialogs/KickLoginPage.cpp
+        widgets/dialogs/KickLoginPage.hpp
         widgets/dialogs/LastRunCrashDialog.cpp
         widgets/dialogs/LastRunCrashDialog.hpp
         widgets/dialogs/LoginDialog.cpp
@@ -695,6 +770,8 @@ set(SOURCE_FILES
         widgets/dialogs/QualityPopup.hpp
         widgets/dialogs/ReplyThreadPopup.cpp
         widgets/dialogs/ReplyThreadPopup.hpp
+        widgets/dialogs/RestoreBackupsDialog.cpp
+        widgets/dialogs/RestoreBackupsDialog.hpp
         widgets/dialogs/SelectChannelDialog.cpp
         widgets/dialogs/SelectChannelDialog.hpp
         widgets/dialogs/SelectChannelFiltersDialog.cpp
@@ -735,6 +812,8 @@ set(SOURCE_FILES
 
         widgets/helper/ChannelView.cpp
         widgets/helper/ChannelView.hpp
+        widgets/helper/CmdDeleteKeyFilter.cpp
+        widgets/helper/CmdDeleteKeyFilter.hpp
         widgets/helper/ComboBoxItemDelegate.cpp
         widgets/helper/ComboBoxItemDelegate.hpp
         widgets/helper/DebugPopup.cpp
@@ -747,8 +826,12 @@ set(SOURCE_FILES
         widgets/helper/IconDelegate.hpp
         widgets/helper/InvisibleSizeGrip.cpp
         widgets/helper/InvisibleSizeGrip.hpp
+        widgets/helper/KickAccountSwitchWidget.cpp
+        widgets/helper/KickAccountSwitchWidget.hpp
         widgets/helper/MessageView.cpp
         widgets/helper/MessageView.hpp
+        widgets/helper/MicroNotebook.cpp
+        widgets/helper/MicroNotebook.hpp
         widgets/helper/NotebookTab.cpp
         widgets/helper/NotebookTab.hpp
         widgets/helper/OverlayInteraction.cpp
@@ -826,6 +909,8 @@ set(SOURCE_FILES
         widgets/splits/InputCompletionItem.hpp
         widgets/splits/InputCompletionPopup.cpp
         widgets/splits/InputCompletionPopup.hpp
+        widgets/splits/InputHighlighter.cpp
+        widgets/splits/InputHighlighter.hpp
         widgets/splits/Split.cpp
         widgets/splits/Split.hpp
         widgets/splits/SplitCommon.hpp
@@ -895,7 +980,6 @@ if (CHATTERINO_GENERATE_COVERAGE)
         EXCLUDE "lib/settings/*"
         EXCLUDE "lib/signals/*"
         EXCLUDE "lib/sol2/*"
-        EXCLUDE "lib/websocketpp/*"
         EXCLUDE "lib/WinToast/*"
 
         EXCLUDE "*/ui_*.h"
@@ -904,14 +988,14 @@ if (CHATTERINO_GENERATE_COVERAGE)
 endif ()
 
 if(TARGET rapidjson)
-    message(DEBUG "Linking to rapidjson target")
+    message(STATUS "rapidjson: Linking to rapidjson target")
     target_link_libraries(${LIBRARY_PROJECT} PUBLIC rapidjson)
-elseif(DEFINED RapidJSON_SOURCE_DIR)
-    message(DEBUG "RapidJSON_SOURCE_DIR defined, assuming this is a submodule/source build. (${RapidJSON_SOURCE_DIR})")
-    target_include_directories(${LIBRARY_PROJECT} SYSTEM PUBLIC ${RapidJSON_SOURCE_DIR}/include)
-else()
-    message(DEBUG "No rapidjson target found, this is most likely a system install. Adding include directories (${RAPIDJSON_INCLUDE_DIRS}) instead")
+elseif(DEFINED RAPIDJSON_INCLUDE_DIRS)
+    message(STATUS "rapidjson: RAPIDJSON_INCLUDE_DIRS defined (${RAPIDJSON_INCLUDE_DIRS}). Most likely a system install.")
     target_include_directories(${LIBRARY_PROJECT} SYSTEM PUBLIC ${RAPIDJSON_INCLUDE_DIRS})
+elseif(DEFINED RapidJSON_SOURCE_DIR)
+    message(STATUS "rapidjson: RapidJSON_SOURCE_DIR defined, assuming this is a submodule/source build. (${RapidJSON_SOURCE_DIR})")
+    target_include_directories(${LIBRARY_PROJECT} SYSTEM PUBLIC ${RapidJSON_SOURCE_DIR}/include)
 endif()
 
 target_link_libraries(${LIBRARY_PROJECT}
@@ -921,14 +1005,15 @@ target_link_libraries(${LIBRARY_PROJECT}
         Qt${MAJOR_QT_VERSION}::WidgetsPrivate # for pixmap filters (paints)
         Qt${MAJOR_QT_VERSION}::Gui
         Qt${MAJOR_QT_VERSION}::Network
+        Qt${MAJOR_QT_VERSION}::NetworkPrivate # for DELETE with a body (Kick)
         Qt${MAJOR_QT_VERSION}::Svg
+        Qt${MAJOR_QT_VERSION}::SvgWidgets
         Qt${MAJOR_QT_VERSION}::Concurrent
 
         LibCommuni::LibCommuni
         Pajlada::Serialize
         Pajlada::Settings
         Pajlada::Signals
-        websocketpp::websocketpp
         Threads::Threads
         LRUCache
         MagicEnum
@@ -938,6 +1023,11 @@ target_link_libraries(${LIBRARY_PROJECT}
         )
 if (CHATTERINO_PLUGINS)
     target_link_libraries(${LIBRARY_PROJECT} PUBLIC lua sol2::sol2)
+endif()
+
+if (CHATTERINO_SPELLCHECK)
+    target_compile_definitions(${LIBRARY_PROJECT} PUBLIC CHATTERINO_WITH_SPELLCHECK)
+    target_link_libraries(${LIBRARY_PROJECT} PRIVATE hunspell::hunspell)
 endif()
 
 if (CHATTERINO_ALLOW_PRIVATE_QT_API)
@@ -1042,12 +1132,14 @@ if (BUILD_APP)
         endif()
         string(REPLACE ";" " " WINDEPLOYQT_COMMAND "${WINDEPLOYQT_COMMAND_ARGV}")
 
-        install(TARGETS ${EXECUTABLE_PROJECT} 
-            RUNTIME_DEPENDENCIES 
+        install(TARGETS ${EXECUTABLE_PROJECT}
+            RUNTIME_DEPENDENCIES
                 PRE_EXCLUDE_REGEXES "api-ms-" "ext-ms-"
-                POST_EXCLUDE_REGEXES ".*system32/.*\\.dll" 
+                POST_EXCLUDE_REGEXES ".*system32/.*\\.dll"
                 DIRECTORIES ${QT_BIN_DIR}
-            RUNTIME DESTINATION .)
+            COMPONENT ${PROJECT_NAME}
+            RUNTIME DESTINATION .
+        )
 
         # Hardcoded list of DLLs to install from Qt - these are marked as optional since they only exist for vcpkg
         install(FILES
@@ -1057,31 +1149,45 @@ if (BUILD_APP)
             ${QT_BIN_DIR}/libwebp.dll
             ${QT_BIN_DIR}/libsharpyuv.dll
             DESTINATION .
-            OPTIONAL)
+            COMPONENT ${PROJECT_NAME}
+            OPTIONAL
+        )
 
-        install(CODE "message(\"-- Running: ${WINDEPLOYQT_COMMAND} --dir \\\"\${CMAKE_INSTALL_PREFIX}\\\"\")")
-        install(CODE "execute_process(COMMAND ${WINDEPLOYQT_COMMAND} --dir \"\${CMAKE_INSTALL_PREFIX}\" COMMAND_ERROR_IS_FATAL ANY)")   
+        install(
+            CODE
+                "message(\"-- Running: ${WINDEPLOYQT_COMMAND} --dir \\\"\${CMAKE_INSTALL_PREFIX}\\\"\")"
+            COMPONENT ${PROJECT_NAME}
+        )
+        install(
+            CODE
+                "execute_process(COMMAND ${WINDEPLOYQT_COMMAND} --dir \"\${CMAKE_INSTALL_PREFIX}\" COMMAND_ERROR_IS_FATAL ANY)"
+            COMPONENT ${PROJECT_NAME}
+        )
     elseif (APPLE)
         install(TARGETS ${EXECUTABLE_PROJECT}
                 RUNTIME DESTINATION bin
                 BUNDLE DESTINATION bin
                 LIBRARY DESTINATION lib
                 ARCHIVE DESTINATION lib/static
+                COMPONENT ${PROJECT_NAME}
                 )
     else ()
         install(TARGETS ${EXECUTABLE_PROJECT}
                 RUNTIME DESTINATION bin
                 LIBRARY DESTINATION lib
                 ARCHIVE DESTINATION lib/static
+                COMPONENT ${PROJECT_NAME}
                 )
 
         install(FILES ${CMAKE_SOURCE_DIR}/resources/com.chatterino.chatterino.desktop
                 DESTINATION share/applications
+                COMPONENT ${PROJECT_NAME}
                 )
 
         install(FILES ${CMAKE_SOURCE_DIR}/resources/icon.png
                 RENAME com.chatterino.chatterino.png
                 DESTINATION share/icons/hicolor/256x256/apps
+                COMPONENT ${PROJECT_NAME}
                 )
     endif ()
 
@@ -1113,6 +1219,7 @@ set_target_properties(${LIBRARY_PROJECT}
 set(VERSION_SOURCE_FILES common/Version.cpp common/Version.hpp)
 add_library(${VERSION_PROJECT} STATIC ${VERSION_SOURCE_FILES})
 target_compile_definitions(${VERSION_PROJECT} PRIVATE
+    CHATTERINO_EXTRA_BUILD_STRING=${CHATTERINO_EXTRA_BUILD_STRING}
     $<$<BOOL:${WIN32}>:USEWINSDK>
     $<$<BOOL:${BUILD_WITH_CRASHPAD}>:CHATTERINO_WITH_CRASHPAD>
 )
@@ -1126,6 +1233,7 @@ target_compile_definitions(${VERSION_PROJECT} PRIVATE
     CHATTERINO_GIT_RELEASE=\"${GIT_RELEASE}\"
     CHATTERINO_GIT_COMMIT=\"${GIT_COMMIT}\"
     CHATTERINO_GIT_MODIFIED=${GIT_MODIFIED}
+    CHATTERINO_NIGHTLY_BUILD=$<BOOL:${CHATTERINO_NIGHTLY_BUILD}>
 
     CHATTERINO_CMAKE_GEN_DATE=\"${cmake_gen_date}\"
 )
@@ -1135,7 +1243,6 @@ target_link_libraries(${LIBRARY_PROJECT} PRIVATE ${VERSION_PROJECT})
 target_compile_definitions(${LIBRARY_PROJECT} PUBLIC
     CHATTERINO
     UNICODE
-    AB_CUSTOM_SETTINGS
     IRC_STATIC
     IRC_NAMESPACE=Communi
     $<$<BOOL:${WIN32}>:_WIN32_WINNT=0x0A00> # Windows 10
@@ -1144,6 +1251,9 @@ target_compile_definitions(${LIBRARY_PROJECT} PUBLIC
     $<$<BOOL:${WIN32}>:NOMINMAX>
     # Exclude some headers when including Windows.h
     $<$<BOOL:${WIN32}>:WIN32_LEAN_AND_MEAN>
+    # Don't allow the use of deprecated Boost.Asio functionality
+    # https://www.boost.org/doc/libs/latest/doc/html/boost_asio/using.html#boost_asio.using.macros
+    BOOST_ASIO_NO_DEPRECATED
     )
 
 set(_c2_qt_defs
@@ -1179,7 +1289,8 @@ if (APPLE AND BUILD_APP)
     set_target_properties(${EXECUTABLE_PROJECT} PROPERTIES MACOSX_BUNDLE TRUE)
     set_target_properties(${EXECUTABLE_PROJECT}
         PROPERTIES
-        MACOSX_BUNDLE_BUNDLE_NAME "Chatterino"
+        MACOSX_BUNDLE_BUNDLE_NAME "Chatterino 7TV"
+        # Keep this for backwards compatibility
         MACOSX_BUNDLE_GUI_IDENTIFIER "app.7tv.chatterino7"
         MACOSX_BUNDLE_LONG_VERSION_STRING "${PROJECT_VERSION}"
         MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
@@ -1338,6 +1449,13 @@ else ()
         )
     endif()
 endif ()
+
+# Extra Clang warnings
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    target_compile_options(${LIBRARY_PROJECT} PUBLIC
+        -Wrange-loop-analysis
+    )
+endif()
 
 if(CHATTERINO_ENABLE_LTO)
     message(STATUS "Enabling LTO for ${LIBRARY_PROJECT}")

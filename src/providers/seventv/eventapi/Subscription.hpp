@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2023 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
 #include <magic_enum/magic_enum.hpp>
@@ -57,26 +61,24 @@ struct ObjectIDCondition {
 
     friend QDebug &operator<<(QDebug &dbg, const ObjectIDCondition &condition);
     bool operator==(const ObjectIDCondition &rhs) const;
-    bool operator!=(const ObjectIDCondition &rhs) const;
 };
 
 struct ChannelCondition {
-    ChannelCondition(QString twitchID);
+    ChannelCondition(QString userID, QString platform);
 
-    QString twitchID;
+    QString userID;
+    QString platform;
 
     QJsonObject encode() const;
 
     friend QDebug &operator<<(QDebug &dbg, const ChannelCondition &condition);
     bool operator==(const ChannelCondition &rhs) const;
-    bool operator!=(const ChannelCondition &rhs) const;
 };
 
 using Condition = std::variant<ObjectIDCondition, ChannelCondition>;
 
 struct Subscription {
     bool operator==(const Subscription &rhs) const;
-    bool operator!=(const Subscription &rhs) const;
     Condition condition;
     SubscriptionType type;
 
@@ -144,7 +146,7 @@ struct hash<chatterino::seventv::eventapi::ChannelCondition> {
     size_t operator()(
         const chatterino::seventv::eventapi::ChannelCondition &c) const
     {
-        return qHash(c.twitchID);
+        return qHash(c.userID, qHash(c.platform));
     }
 };
 

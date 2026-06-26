@@ -1,6 +1,11 @@
+// SPDX-FileCopyrightText: 2017 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
 #include "widgets/BaseWidget.hpp"
+#include "widgets/dialogs/KickLoginPage.hpp"
 
 #include <QAction>
 #include <QApplication>
@@ -77,6 +82,8 @@ private:
         BasicLoginWidget basic;
 
         AdvancedLoginWidget advanced;
+
+        KickLoginPage kick;
     } ui_;
 };
 

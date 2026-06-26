@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2018 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #include "common/network/NetworkRequest.hpp"
 
 #include "common/network/NetworkPrivate.hpp"
@@ -75,6 +79,12 @@ NetworkRequest NetworkRequest::onSuccess(NetworkSuccessCallback cb) &&
 NetworkRequest NetworkRequest::finally(NetworkFinallyCallback cb) &&
 {
     this->data->finally = std::move(cb);
+    return std::move(*this);
+}
+
+NetworkRequest NetworkRequest::hideRequestBody() &&
+{
+    this->data->hideRequestBody = true;
     return std::move(*this);
 }
 

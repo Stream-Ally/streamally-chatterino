@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2020 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #include "common/QLogging.hpp"
 
 #ifdef NDEBUG
@@ -26,6 +30,7 @@ Q_LOGGING_CATEGORY(chatterinoHTTP, "chatterino.http", logThreshold);
 Q_LOGGING_CATEGORY(chatterinoImage, "chatterino.image", logThreshold);
 Q_LOGGING_CATEGORY(chatterinoIrc, "chatterino.irc", logThreshold);
 Q_LOGGING_CATEGORY(chatterinoIvr, "chatterino.ivr", logThreshold);
+Q_LOGGING_CATEGORY(chatterinoKick, "chatterino.kick", logThreshold);
 Q_LOGGING_CATEGORY(chatterinoLiveupdates, "chatterino.liveupdates",
                    logThreshold);
 Q_LOGGING_CATEGORY(chatterinoLua, "chatterino.lua", logThreshold);
@@ -47,6 +52,7 @@ Q_LOGGING_CATEGORY(chatterinoSeventv, "chatterino.seventv", logThreshold);
 Q_LOGGING_CATEGORY(chatterinoSeventvEventAPI, "chatterino.seventv.eventapi",
                    logThreshold);
 Q_LOGGING_CATEGORY(chatterinoSound, "chatterino.sound", logThreshold);
+Q_LOGGING_CATEGORY(chatterinoSpellcheck, "chatterino.spellcheck", logThreshold);
 Q_LOGGING_CATEGORY(chatterinoStreamerMode, "chatterino.streamermode",
                    logThreshold);
 Q_LOGGING_CATEGORY(chatterinoStreamlink, "chatterino.streamlink", logThreshold);

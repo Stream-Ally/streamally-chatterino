@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2018 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #include "messages/layouts/MessageLayoutElement.hpp"
 
 #include "Application.hpp"
@@ -43,12 +47,12 @@ MessageLayoutElement::MessageLayoutElement(MessageElement &creator, QSizeF size)
     : rect_(QPointF{}, size)
     , creator_(creator)
 {
-    DebugCount::increase("message layout elements");
+    DebugCount::increase(DebugObject::MessageLayoutElement);
 }
 
 MessageLayoutElement::~MessageLayoutElement()
 {
-    DebugCount::decrease("message layout elements");
+    DebugCount::decrease(DebugObject::MessageLayoutElement);
 }
 
 MessageElement &MessageLayoutElement::getCreator() const
@@ -458,37 +462,39 @@ void TextLayoutElement::paint(QPainter &painter,
     }
 
     auto font = app->getFonts()->getFont(this->style_, this->scale_);
+    auto metrics = app->getFonts()->getFontMetrics(this->style_, this->scale_);
 
     bool isNametag = this->getLink().type == chatterino::Link::UserInfo ||
                      this->getLink().type == chatterino::Link::UserWhisper;
     bool drawPaint = isNametag && this->messageColor_ != MessageColor::System &&
                      getSettings()->displaySevenTVPaints;
-    auto seventvPaint =
-        app->getSeventvPaints()->getPaint(this->getLink().value.toLower());
-    if (drawPaint && seventvPaint.has_value())
+    if (drawPaint)
     {
-        if (seventvPaint.value()->animated())
+        auto paint = app->getSeventvPaints()->getPaint(
+            this->getLink().value.toLower(),
+            this->getCreator().getFlags().has(
+                MessageElementFlag::KickUsername));
+        if (paint)
         {
+            if (paint->animated())
+            {
+                return;
+            }
+
+            auto paintPixmap = paint->getPixmap(
+                this->getText(), font, this->color_, this->getRect().size(),
+                this->scale_, this->dpr_);
+
+            painter.drawPixmap(this->getRect().topLeft(), paintPixmap);
             return;
         }
-
-        const auto &paint = seventvPaint.value();
-
-        auto paintPixmap =
-            paint->getPixmap(this->getText(), font, this->color_,
-                             this->getRect().size(), this->scale_, this->dpr_);
-
-        painter.drawPixmap(this->getRect().topLeft(), paintPixmap);
     }
-    else
-    {
-        painter.setPen(this->color_);
-        painter.setFont(font);
 
-        painter.drawText(
-            QRectF(this->getRect().x(), this->getRect().y(), 10000, 10000),
-            text, QTextOption(Qt::AlignLeft | Qt::AlignTop));
-    }
+    painter.setPen(this->color_);
+    painter.setFont(font);
+
+    QPointF pivot(this->getRect().x(), this->getRect().y() + metrics.ascent());
+    painter.drawText(pivot, text);
 }
 
 bool TextLayoutElement::paintAnimated(QPainter &painter, const qreal yOffset)
@@ -504,25 +510,26 @@ bool TextLayoutElement::paintAnimated(QPainter &painter, const qreal yOffset)
         this->getLink().type == chatterino::Link::UserInfo ||
         this->getLink().type == chatterino::Link::UserWhisper;
     const bool drawPaint = isNametag && getSettings()->displaySevenTVPaints;
-    const auto seventvPaint =
-        getApp()->getSeventvPaints()->getPaint(this->getLink().value.toLower());
-
-    if (drawPaint && seventvPaint.has_value() &&
-        seventvPaint.value()->animated())
+    if (!drawPaint)
     {
-        const auto paint = seventvPaint.value();
-
-        const auto paintPixmap =
-            paint->getPixmap(this->getText(), font, this->color_,
-                             this->getRect().size(), this->scale_, this->dpr_);
-
-        auto rect = this->getRect();
-        rect.moveTop(rect.y() + yOffset);
-        painter.drawPixmap(rect, paintPixmap, QRectF());
-        return true;
+        return false;
+    }
+    const auto paint = getApp()->getSeventvPaints()->getPaint(
+        this->getLink().value.toLower(),
+        this->getCreator().getFlags().has(MessageElementFlag::KickUsername));
+    if (!paint || !paint->animated())
+    {
+        return false;
     }
 
-    return false;
+    const auto paintPixmap =
+        paint->getPixmap(this->getText(), font, this->color_,
+                         this->getRect().size(), this->scale_, this->dpr_);
+
+    auto rect = this->getRect();
+    rect.moveTop(rect.y() + yOffset);
+    painter.drawPixmap(rect, paintPixmap, QRectF());
+    return true;
 }
 
 int TextLayoutElement::getMouseOverIndex(QPointF abs) const

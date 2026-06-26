@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2017 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #include "widgets/splits/SplitInput.hpp"
 
 #include "Application.hpp"
@@ -5,33 +9,41 @@
 #include "common/QLogging.hpp"
 #include "controllers/commands/CommandController.hpp"
 #include "controllers/hotkeys/HotkeyController.hpp"
+#include "controllers/spellcheck/SpellChecker.hpp"
 #include "messages/Link.hpp"
 #include "messages/Message.hpp"
+#include "providers/kick/KickChannel.hpp"
 #include "providers/twitch/TwitchChannel.hpp"
 #include "providers/twitch/TwitchCommon.hpp"
 #include "providers/twitch/TwitchIrcServer.hpp"
 #include "singletons/Fonts.hpp"
 #include "singletons/Settings.hpp"
 #include "singletons/Theme.hpp"
+#include "singletons/WindowManager.hpp"
 #include "util/Helpers.hpp"
 #include "util/LayoutCreator.hpp"
+#include "util/MultiChannel.hpp"
 #include "widgets/buttons/LabelButton.hpp"
 #include "widgets/buttons/SvgButton.hpp"
 #include "widgets/dialogs/EmotePopup.hpp"
 #include "widgets/helper/ChannelView.hpp"
+#include "widgets/helper/CmdDeleteKeyFilter.hpp"
 #include "widgets/helper/MessageView.hpp"
 #include "widgets/helper/ResizingTextEdit.hpp"
 #include "widgets/Notebook.hpp"
 #include "widgets/Scrollbar.hpp"
 #include "widgets/splits/InputCompletionPopup.hpp"
+#include "widgets/splits/InputHighlighter.hpp"
 #include "widgets/splits/Split.hpp"
 #include "widgets/splits/SplitContainer.hpp"
 
+#include <QActionGroup>
 #include <QCompleter>
 #include <QPainter>
 #include <QSignalBlocker>
 
 #include <functional>
+#include <ranges>
 
 using namespace Qt::Literals;
 
@@ -68,18 +80,23 @@ SplitInput::SplitInput(QWidget *parent, Split *_chatWidget,
     this->installEventFilter(this);
     this->initLayout();
 
-    auto *completer =
-        new QCompleter(this->split_->getChannel()->completionModel);
-    this->ui_.textEdit->setCompleter(completer);
+    // NOLINTNEXTLINE(cppcoreguidelines-prefer-member-initializer)
+    auto *spellChecker = getApp()->getSpellChecker();
+    this->inputHighlighter = new InputHighlighter(*spellChecker, this);
+    this->updateChannel();
 
     this->signalHolder_.managedConnect(this->split_->channelChanged, [this] {
-        auto channel = this->split_->getChannel();
-        auto *completer = new QCompleter(channel->completionModel);
-        this->ui_.textEdit->setCompleter(completer);
+        this->updateChannel();
     });
 
+    getSettings()->enableSpellChecking.connect(
+        [this] {
+            this->checkSpellingChanged();
+        },
+        this->signalHolder_);
+
     // misc
-    this->installKeyPressedEvent();
+    this->installTextEditEvents();
     this->addShortcuts();
     // The textEdit's signal will be destroyed before this SplitInput is
     // destroyed, so we can safely ignore this signal's connection.
@@ -123,11 +140,11 @@ void SplitInput::initLayout()
     auto replyHbox =
         replyVbox.emplace<QHBoxLayout>().assign(&this->ui_.replyHbox);
 
-    auto messageVbox = layoutCreator.setLayoutType<QVBoxLayout>();
+    auto *messageVbox = new QVBoxLayout;
     this->ui_.replyMessage = new MessageView();
     messageVbox->addWidget(this->ui_.replyMessage, 0, Qt::AlignLeft);
     messageVbox->setContentsMargins(10, 0, 0, 0);
-    replyVbox->addLayout(messageVbox->layout(), 0);
+    replyVbox->addLayout(messageVbox, 0);
 
     auto replyLabel = replyHbox.emplace<QLabel>().assign(&this->ui_.replyLabel);
     replyLabel->setAlignment(Qt::AlignLeft);
@@ -164,6 +181,9 @@ void SplitInput::initLayout()
             &SplitInput::editTextChanged);
     textEdit->setFrameStyle(QFrame::NoFrame);
 
+    auto *shortcutFilter = new CmdDeleteKeyFilter(this);
+    textEdit->installEventFilter(shortcutFilter);
+
     hboxLayout.emplace<LabelButton>("SEND").assign(&this->ui_.sendButton);
     this->ui_.sendButton->hide();
 
@@ -189,10 +209,16 @@ void SplitInput::initLayout()
     auto box = hboxLayout.emplace<QVBoxLayout>().withoutMargin();
     box->setSpacing(0);
     {
+        auto hbox = box.emplace<QHBoxLayout>().withoutMargin();
         this->ui_.textEditLength = new QLabel();
         // Right-align the labels contents
         this->ui_.textEditLength->setAlignment(Qt::AlignRight);
-        box->addWidget(this->ui_.textEditLength);
+        hbox->addWidget(this->ui_.textEditLength);
+
+        this->ui_.sendWaitStatus = new QLabel();
+        this->ui_.sendWaitStatus->setAlignment(Qt::AlignRight);
+        this->ui_.sendWaitStatus->setHidden(true);
+        hbox->addWidget(this->ui_.sendWaitStatus);
 
         this->ui_.emoteButton = new SvgButton(
             {
@@ -225,7 +251,7 @@ void SplitInput::initLayout()
 
     // clear input and remove reply thread
     QObject::connect(this->ui_.cancelReplyButton, &Button::leftClicked, [this] {
-        this->setReply(nullptr);
+        this->setReply(nullptr, {});
     });
 
     // Forward selection change signal
@@ -242,6 +268,16 @@ void SplitInput::initLayout()
         [this](const bool &value, auto) {
             // this->ui_.textEditLength->setHidden(!value);
             this->editTextChanged();
+        },
+        this->managedConnections_);
+
+    // sendWaitStatus visibility
+    getSettings()->showSendWaitTimer.connect(
+        [this](bool value, const auto &) {
+            if (!this->ui_.sendWaitStatus->text().isEmpty())
+            {
+                this->ui_.sendWaitStatus->setHidden(!value);
+            }
         },
         this->managedConnections_);
 }
@@ -281,6 +317,7 @@ void SplitInput::themeChangedEvent()
     palette.setColor(QPalette::WindowText, this->theme->splits.input.text);
 
     this->ui_.textEditLength->setPalette(palette);
+    this->ui_.sendWaitStatus->setPalette(palette);
 
     // Theme changed, reset current background color
     this->setBackgroundColor(this->theme->splits.input.background);
@@ -353,7 +390,7 @@ void SplitInput::openEmotePopup()
             });
     }
 
-    this->emotePopup_->loadChannel(this->split_->getChannel());
+    this->emotePopup_->loadChannel(this->split_->getSelectedChannel());
     this->emotePopup_->show();
     this->emotePopup_->raise();
     this->emotePopup_->activateWindow();
@@ -361,16 +398,24 @@ void SplitInput::openEmotePopup()
 
 QString SplitInput::handleSendMessage(const std::vector<QString> &arguments)
 {
-    auto c = this->split_->getChannel();
+    ChannelPtr c;
+    if (this->replyTarget_)
+    {
+        c = this->replyChannel_.lock();
+    }
+    if (!c)
+    {
+        c = this->split_->getSelectedChannel();
+    }
     if (c == nullptr)
     {
         return "";
     }
 
-    if (!c->isTwitchChannel() || this->replyTarget_ == nullptr)
+    if (!c->isTwitchOrKickChannel() || this->replyTarget_ == nullptr)
     {
         // standard message send behavior
-        QString message = ui_.textEdit->toPlainText();
+        QString message = this->ui_.textEdit->toPlainText();
 
         message = message.replace('\n', ' ');
         QString sendMessage =
@@ -384,7 +429,8 @@ QString SplitInput::handleSendMessage(const std::vector<QString> &arguments)
 
     // Reply to message
     auto *tc = dynamic_cast<TwitchChannel *>(c.get());
-    if (!tc)
+    auto *kc = dynamic_cast<KickChannel *>(c.get());
+    if (!tc && !kc)
     {
         // this should not fail
         return "";
@@ -409,7 +455,14 @@ QString SplitInput::handleSendMessage(const std::vector<QString> &arguments)
         getApp()->getCommands()->execCommand(message, c, false);
 
     // Reply within TwitchChannel
-    tc->sendReply(sendMessage, this->replyTarget_->id);
+    if (tc)
+    {
+        tc->sendReply(sendMessage, this->replyTarget_->id);
+    }
+    else if (kc)
+    {
+        kc->sendReply(sendMessage, this->replyTarget_->id);
+    }
 
     this->postMessageSend(message, arguments);
     return "";
@@ -540,7 +593,7 @@ void SplitInput::addShortcuts()
 
              if (this->prevIndex_ == (this->prevMsg_.size()))
              {
-                 this->currMsg_ = ui_.textEdit->toPlainText();
+                 this->currMsg_ = this->ui_.textEdit->toPlainText();
              }
 
              this->prevIndex_--;
@@ -564,7 +617,7 @@ void SplitInput::addShortcuts()
                  return "";
              }
              bool cursorToEnd = true;
-             QString message = ui_.textEdit->toPlainText();
+             QString message = this->ui_.textEdit->toPlainText();
 
              if (this->prevIndex_ != (this->prevMsg_.size() - 1) &&
                  this->prevIndex_ != this->prevMsg_.size())
@@ -716,7 +769,7 @@ bool SplitInput::eventFilter(QObject *obj, QEvent *event)
     return BaseWidget::eventFilter(obj, event);
 }
 
-void SplitInput::installKeyPressedEvent()
+void SplitInput::installTextEditEvents()
 {
     // We can safely ignore this signal's connection because SplitInput owns
     // the textEdit object, so it will always be deleted before SplitInput
@@ -748,10 +801,102 @@ void SplitInput::installKeyPressedEvent()
             }
         });
 
-#ifdef DEBUG
-    assert(this->keyPressedEventInstalled == false);
-    this->keyPressedEventInstalled = true;
+    std::ignore = this->ui_.textEdit->contextMenuRequested.connect(
+        [this](QMenu *menu, QPoint pos) {
+            auto channel = this->split_->getChannel();
+            if (auto *mc = dynamic_cast<MultiChannel *>(channel.get()))
+            {
+                auto channels = mc->channels();
+                auto currentIdx = mc->activeChannelIndex();
+                if (!channels.empty())
+                {
+                    auto *submenu = menu->addMenu("Set Context");
+                    auto *group = new QActionGroup(submenu);
+
+                    for (size_t i = 0; i < channels.size(); i++)
+                    {
+                        QString name = channels[i].channel->getName() % u" (";
+                        name +=
+                            qmagicenum::enumNameString(channels[i].platform);
+                        name += ')';
+                        auto *action = new QAction(name, submenu);
+                        action->setActionGroup(group);
+                        action->setCheckable(true);
+                        action->setChecked(i == currentIdx);
+                        QObject::connect(
+                            action, &QAction::toggled, this,
+                            [this, i](bool checked) {
+                                if (!checked)
+                                {
+                                    return;
+                                }
+                                auto *mc = dynamic_cast<MultiChannel *>(
+                                    this->split_->getChannel().get());
+                                mc->setActiveChannelIndex(i);
+                                getApp()
+                                    ->getWindows()
+                                    ->forceLayoutChannelViews();
+                            });
+                        submenu->addAction(action);
+                    }
+                }
+            }
+
+#ifdef CHATTERINO_WITH_SPELLCHECK
+            menu->addSeparator();
+            auto *spellcheckAction = new QAction("Check spelling", menu);
+            spellcheckAction->setCheckable(true);
+            spellcheckAction->setChecked(this->shouldCheckSpelling());
+            QObject::connect(spellcheckAction, &QAction::toggled, this,
+                             [this](bool enabled) {
+                                 this->checkSpellingOverride_ = enabled;
+                                 this->checkSpellingChanged();
+                             });
+            menu->addAction(spellcheckAction);
+
+            int nSuggestions = getSettings()->nSpellCheckingSuggestions;
+            if (nSuggestions < 0)
+            {
+                nSuggestions = std::numeric_limits<int>::max();
+            }
+
+            if (!this->inputHighlighter || nSuggestions == 0)
+            {
+                return;
+            }
+
+            auto cursorAtPos = this->ui_.textEdit->cursorForPosition(pos);
+            QString text = this->ui_.textEdit->toPlainText();
+            QStringView word =
+                this->inputHighlighter->getWordAt(text, cursorAtPos.position());
+            if (!word.isEmpty())
+            {
+                auto cursor = this->ui_.textEdit->textCursor();
+                // Select `word`. `word` is a view into `text`, so we can use
+                // the offsets of `word` from the start of `text`.
+                cursor.setPosition(
+                    static_cast<int>(word.begin() - text.begin()));
+                cursor.setPosition(static_cast<int>(word.end() - text.begin()),
+                                   QTextCursor::KeepAnchor);
+
+                auto suggestions =
+                    getApp()->getSpellChecker()->suggestions(word.toString());
+                for (const auto &sugg :
+                     suggestions | std::views::take(nSuggestions))
+                {
+                    auto qSugg = QString::fromStdString(sugg);
+                    menu->addAction(qSugg, [this, qSugg, cursor]() mutable {
+                        cursor.insertText(qSugg);
+                        this->ui_.textEdit->setTextCursor(cursor);
+                    });
+                }
+            }
+#else
+            (void)menu;
+            (void)pos;
+            (void)this;
 #endif
+        });
 }
 
 void SplitInput::mousePressEvent(QMouseEvent *event)
@@ -778,7 +923,7 @@ void SplitInput::onCursorPositionChanged()
 
 void SplitInput::updateCompletionPopup()
 {
-    auto *channel = this->split_->getChannel().get();
+    auto *channel = this->split_->getSelectedChannel().get();
     auto *tc = dynamic_cast<TwitchChannel *>(channel);
     bool showEmoteCompletion = getSettings()->emoteCompletionWithColon;
     bool showUsernameCompletion =
@@ -859,7 +1004,7 @@ void SplitInput::showCompletionPopup(const QString &text, CompletionKind kind)
     auto *popup = this->inputCompletionPopup_.data();
     assert(popup);
 
-    popup->updateCompletion(text, kind, this->split_->getChannel());
+    popup->updateCompletion(text, kind, this->split_->getSelectedChannel());
 
     auto pos = this->mapToGlobal(QPoint{0, 0}) - QPoint(0, popup->height()) +
                QPoint((this->width() - popup->width()) / 2, 0);
@@ -989,7 +1134,7 @@ void SplitInput::editTextChanged()
     }
 
     if (text.startsWith("/r ", Qt::CaseInsensitive) &&
-        this->split_->getChannel()->isTwitchChannel())
+        this->split_->getSelectedChannel()->isTwitchChannel())
     {
         auto lastUser = app->getTwitch()->getLastUserThatWhisperedMe();
         if (!lastUser.isEmpty())
@@ -1139,7 +1284,7 @@ void SplitInput::giveFocus(Qt::FocusReason reason)
     this->ui_.textEdit->setFocus(reason);
 }
 
-void SplitInput::setReply(MessagePtr target)
+void SplitInput::setReply(MessagePtr target, std::weak_ptr<Channel> channel)
 {
     auto oldParent = this->replyTarget_;
     if (this->enableInlineReplying_ && oldParent)
@@ -1159,6 +1304,7 @@ void SplitInput::setReply(MessagePtr target)
     if (target != nullptr)
     {
         this->replyTarget_ = std::move(target);
+        this->replyChannel_ = std::move(channel);
 
         if (this->enableInlineReplying_)
         {
@@ -1209,6 +1355,7 @@ void SplitInput::setReply(MessagePtr target)
     else
     {
         this->replyTarget_.reset();
+        this->replyChannel_.reset();
 
         if (this->enableInlineReplying_)
         {
@@ -1251,7 +1398,7 @@ bool SplitInput::shouldPreventInput(const QString &text) const
         return false;
     }
 
-    auto channel = this->split_->getChannel();
+    auto channel = this->split_->getSelectedChannel();
 
     if (channel == nullptr)
     {
@@ -1325,6 +1472,40 @@ void SplitInput::setBackgroundColor(QColor newColor)
     this->updateTextEditPalette();
 }
 
+std::optional<bool> SplitInput::checkSpellingOverride() const
+{
+    return this->checkSpellingOverride_;
+}
+
+void SplitInput::setCheckSpellingOverride(std::optional<bool> override)
+{
+    this->checkSpellingOverride_ = override;
+    this->checkSpellingChanged();
+}
+
+bool SplitInput::shouldCheckSpelling() const
+{
+    if (this->checkSpellingOverride_)
+    {
+        return *this->checkSpellingOverride_;
+    }
+    return getSettings()->enableSpellChecking;
+}
+
+void SplitInput::checkSpellingChanged()
+{
+    QTextDocument *target = nullptr;
+    if (this->shouldCheckSpelling())
+    {
+        target = this->ui_.textEdit->document();
+    }
+
+    if (this->inputHighlighter->document() != target)
+    {
+        this->inputHighlighter->setDocument(target);
+    }
+}
+
 void SplitInput::updateFonts()
 {
     auto *app = getApp();
@@ -1333,10 +1514,46 @@ void SplitInput::updateFonts()
 
     // NOTE: We're using TimestampMedium here to get a font that uses the tnum font feature,
     // meaning numbers get equal width & don't bounce around while the user is typing.
-    this->ui_.textEditLength->setFont(
-        app->getFonts()->getFont(FontStyle::TimestampMedium, this->scale()));
+    auto tsMedium =
+        app->getFonts()->getFont(FontStyle::TimestampMedium, this->scale());
+    this->ui_.textEditLength->setFont(tsMedium);
+    this->ui_.sendWaitStatus->setFont(tsMedium);
     this->ui_.replyLabel->setFont(
         app->getFonts()->getFont(FontStyle::ChatMediumBold, this->scale()));
+}
+
+void SplitInput::setSendWaitStatus(const QString &text) const
+{
+    this->ui_.sendWaitStatus->setText(text);
+    if (text.isEmpty())
+    {
+        this->ui_.sendWaitStatus->setHidden(true);
+    }
+    else
+    {
+        this->ui_.sendWaitStatus->setHidden(!getSettings()->showSendWaitTimer);
+    }
+}
+
+void SplitInput::updateChannel()
+{
+    this->channelConnections_.clear();
+
+    auto channel = this->split_->getChannel();
+    if (auto *multiChannel = dynamic_cast<MultiChannel *>(channel.get()))
+    {
+        this->channelConnections_.managedConnect(
+            multiChannel->activeChannelChanged, [this] {
+                auto selected = this->split_->getSelectedChannel();
+                this->ui_.textEdit->setCompleter(
+                    new QCompleter(selected->completionModel));
+                this->inputHighlighter->setChannel(selected);
+            });
+    }
+
+    auto selected = this->split_->getSelectedChannel();
+    this->ui_.textEdit->setCompleter(new QCompleter(selected->completionModel));
+    this->inputHighlighter->setChannel(selected);
 }
 
 }  // namespace chatterino

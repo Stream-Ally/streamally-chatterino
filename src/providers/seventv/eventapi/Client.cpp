@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2022 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #include "providers/seventv/eventapi/Client.hpp"
 
 #include "Application.hpp"
@@ -16,7 +20,7 @@ namespace chatterino::seventv::eventapi {
 
 Client::Client(SeventvEventAPI &manager,
                std::chrono::milliseconds heartbeatInterval)
-    : BasicPubSubClient<Subscription>(100)
+    : BasicPubSubClient(100)
     , lastHeartbeat_(std::chrono::steady_clock::now())
     , heartbeatInterval_(heartbeatInterval)
     , manager_(manager)
@@ -25,7 +29,7 @@ Client::Client(SeventvEventAPI &manager,
 
 void Client::onOpen()
 {
-    BasicPubSubClient<Subscription>::onOpen();
+    BasicPubSubClient::onOpen();
     this->lastHeartbeat_.store(std::chrono::steady_clock::now(),
                                std::memory_order::relaxed);
 }
@@ -264,8 +268,8 @@ void Client::onEmoteSetUpdate(const Dispatch &dispatch)
         {
             qCDebug(chatterinoSeventvEventAPI) << "Flushed last emote set";
             this->manager_.signals_.personalEmoteSetAdded.invoke({
-                this->lastPersonalEmoteAssignment_->userName,
-                *emoteSet,
+                .connections = this->lastPersonalEmoteAssignment_->connections,
+                .emoteSet = *emoteSet,
             });
         }
     }
@@ -346,22 +350,22 @@ void Client::onEntitlementCreate(
     switch (entitlement.kind)
     {
         case CosmeticKind::Badge: {
-            badges->assignBadgeToUser(entitlement.refID,
-                                      UserId{entitlement.userID});
+            badges->assignBadgeToUsers(entitlement.refID,
+                                       entitlement.connections);
         }
         break;
         case CosmeticKind::Paint: {
-            app->getSeventvPaints()->assignPaintToUser(
-                entitlement.refID, UserName{entitlement.userName});
+            app->getSeventvPaints()->assignPaintToUsers(
+                entitlement.refID, entitlement.connections);
         }
         break;
         case CosmeticKind::EmoteSet: {
             qCDebug(chatterinoSeventvEventAPI)
-                << "Assign user" << entitlement.userID << "to emote set"
-                << entitlement.refID;
+                << "Assign user" << entitlement.seventvUsername
+                << "to emote set" << entitlement.refID;
             if (auto set =
-                    app->getSeventvPersonalEmotes()->assignUserToEmoteSet(
-                        entitlement.refID, entitlement.userID))
+                    app->getSeventvPersonalEmotes()->assignUsersToEmoteSet(
+                        entitlement.refID, entitlement.connections))
             {
                 if ((*set)->empty())
                 {
@@ -370,15 +374,17 @@ void Client::onEntitlementCreate(
                            "updates";
                     this->lastPersonalEmoteAssignment_ =
                         LastPersonalEmoteAssignment{
-                            .userName = entitlement.userName,
+                            .connections = entitlement.connections,
                             .emoteSetID = entitlement.refID,
                         };
                 }
                 else
                 {
                     this->lastPersonalEmoteAssignment_ = std::nullopt;
-                    this->manager_.signals_.personalEmoteSetAdded.invoke(
-                        {entitlement.userName, *set});
+                    this->manager_.signals_.personalEmoteSetAdded.invoke({
+                        .connections = entitlement.connections,
+                        .emoteSet = *set,
+                    });
                 }
             }
         }
@@ -401,13 +407,13 @@ void Client::onEntitlementDelete(
     switch (entitlement.kind)
     {
         case CosmeticKind::Badge: {
-            badges->clearBadgeFromUser(entitlement.refID,
-                                       UserId{entitlement.userID});
+            badges->clearBadgeFromUsers(entitlement.refID,
+                                        entitlement.connections);
         }
         break;
         case CosmeticKind::Paint: {
-            app->getSeventvPaints()->clearPaintFromUser(
-                entitlement.refID, UserName{entitlement.userName});
+            app->getSeventvPaints()->clearPaintFromUsers(
+                entitlement.refID, entitlement.connections);
         }
         break;
         default:

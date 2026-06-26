@@ -1,8 +1,13 @@
+// SPDX-FileCopyrightText: 2024 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #include "messages/layouts/MessageLayout.hpp"
 
 #include "Application.hpp"
 #include "controllers/accounts/AccountController.hpp"
 #include "messages/layouts/MessageLayoutContext.hpp"
+#include "messages/layouts/MessageLayoutElement.hpp"
 #include "messages/MessageBuilder.hpp"
 #include "messages/MessageElement.hpp"
 #include "mocks/BaseApplication.hpp"
@@ -25,7 +30,7 @@ class MockApplication : public mock::BaseApplication
 {
 public:
     MockApplication()
-        : windowManager(this->args, this->paths_, this->settings, this->theme,
+        : windowManager(this->args_, this->paths_, this->settings, this->theme,
                         this->fonts)
     {
     }
@@ -64,6 +69,8 @@ public:
                 .width = WIDTH,
                 .scale = 1,
                 .imageScale = 1,
+                .selectedChannel = nullptr,
+                .message = *this->layout->getMessage(),
             },
             false);
     }

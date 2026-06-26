@@ -1,11 +1,8 @@
 #include "providers/seventv/SeventvPaints.hpp"
 
 #include "Application.hpp"
-#include "common/Literals.hpp"
-#include "common/network/NetworkRequest.hpp"
-#include "common/network/NetworkResult.hpp"
-#include "common/Outcome.hpp"
 #include "messages/Image.hpp"
+#include "providers/seventv/eventapi/Dispatch.hpp"
 #include "providers/seventv/paints/LinearGradientPaint.hpp"
 #include "providers/seventv/paints/PaintDropShadow.hpp"
 #include "providers/seventv/paints/RadialGradientPaint.hpp"
@@ -13,12 +10,13 @@
 #include "singletons/WindowManager.hpp"
 #include "util/DebugCount.hpp"
 #include "util/PostToThread.hpp"
+#include "util/Variant.hpp"
 
 #include <QUrlQuery>
 
 namespace {
 using namespace chatterino;
-using namespace literals;
+using namespace Qt::Literals;
 
 QColor rgbaToQColor(const uint32_t color)
 {
@@ -135,17 +133,28 @@ namespace chatterino {
 
 SeventvPaints::SeventvPaints() = default;
 
-std::optional<std::shared_ptr<Paint>> SeventvPaints::getPaint(
-    const QString &userName) const
+std::shared_ptr<Paint> SeventvPaints::getPaint(const QString &userName,
+                                               bool kick) const
 {
     std::shared_lock lock(this->mutex_);
 
-    const auto it = this->paintMap_.find(userName);
-    if (it != this->paintMap_.end())
+    if (kick)
     {
-        return it->second;
+        const auto it = this->kickPaintMap_.find(userName);
+        if (it != this->kickPaintMap_.end())
+        {
+            return it->second;
+        }
     }
-    return std::nullopt;
+    else
+    {
+        const auto it = this->twitchPaintMap_.find(userName);
+        if (it != this->twitchPaintMap_.end())
+        {
+            return it->second;
+        }
+    }
+    return nullptr;
 }
 
 void SeventvPaints::addPaint(const QJsonObject &paintJson)
@@ -154,7 +163,7 @@ void SeventvPaints::addPaint(const QJsonObject &paintJson)
 
     std::unique_lock lock(this->mutex_);
 
-    if (this->knownPaints_.find(paintID) != this->knownPaints_.end())
+    if (this->knownPaints_.contains(paintID))
     {
         return;
     }
@@ -165,51 +174,93 @@ void SeventvPaints::addPaint(const QJsonObject &paintJson)
         return;
     }
 
-    DebugCount::increase(u"7TV Paints"_s);
+    DebugCount::increase(DebugObject::SeventvPaints);
     this->knownPaints_[paintID] = *paint;
 }
 
-void SeventvPaints::assignPaintToUser(const QString &paintID,
-                                      const UserName &userName)
+void SeventvPaints::assignPaintToUsers(
+    const QString &paintID, std::span<const seventv::eventapi::User> users)
 {
     std::unique_lock lock(this->mutex_);
 
     const auto paintIt = this->knownPaints_.find(paintID);
-    if (paintIt != this->knownPaints_.end())
+    if (paintIt == this->knownPaints_.end())
     {
-        auto it = this->paintMap_.find(userName.string);
-        bool changed = false;
-        if (it == this->paintMap_.end())
+        return;
+    }
+
+    bool changed = false;
+    int64_t nAdded = 0;
+    auto addToMap = [&](auto &map, const QString &username) {
+        auto it = map.find(username);
+        if (it == map.end())
         {
-            this->paintMap_.emplace(userName.string, paintIt->second);
-            DebugCount::increase(u"7TV Paint Assignments"_s);
+            map.emplace(username, paintIt->second);
             changed = true;
+            nAdded++;
         }
         else if (it->second != paintIt->second)
         {
             it->second = paintIt->second;
             changed = true;
         }
+    };
+    for (const auto &user : users)
+    {
+        std::visit(variant::Overloaded{
+                       [&](const seventv::eventapi::TwitchUser &u) {
+                           addToMap(this->twitchPaintMap_, u.userName);
+                       },
+                       [&](const seventv::eventapi::KickUser &u) {
+                           addToMap(this->kickPaintMap_, u.userName);
+                       },
+                   },
+                   user);
+    }
 
-        if (changed)
-        {
-            postToThread([] {
-                getApp()->getWindows()->invalidateChannelViewBuffers();
-            });
-        }
+    if (nAdded > 0)
+    {
+        DebugCount::increase(DebugObject::SeventvPaintAssignments, nAdded);
+    }
+
+    if (changed)
+    {
+        postToThread([] {
+            getApp()->getWindows()->invalidateChannelViewBuffers();
+        });
     }
 }
 
-void SeventvPaints::clearPaintFromUser(const QString &paintID,
-                                       const UserName &userName)
+void SeventvPaints::clearPaintFromUsers(
+    const QString &paintID, std::span<const seventv::eventapi::User> users)
 {
     std::unique_lock lock(this->mutex_);
 
-    const auto it = this->paintMap_.find(userName.string);
-    if (it != this->paintMap_.end() && it->second->id == paintID)
+    int64_t nRemoved = 0;
+    auto removeFromMap = [&](auto &map, const QString &username) {
+        const auto it = map.find(username);
+        if (it != map.end() && it->second->id == paintID)
+        {
+            map.erase(it);
+            nRemoved++;
+        }
+    };
+    for (const auto &user : users)
     {
-        this->paintMap_.erase(it);
-        DebugCount::decrease(u"7TV Paint Assignments"_s);
+        std::visit(variant::Overloaded{
+                       [&](const seventv::eventapi::TwitchUser &u) {
+                           removeFromMap(this->twitchPaintMap_, u.userName);
+                       },
+                       [&](const seventv::eventapi::KickUser &u) {
+                           removeFromMap(this->kickPaintMap_, u.userName);
+                       },
+                   },
+                   user);
+    }
+
+    if (nRemoved > 0)
+    {
+        DebugCount::decrease(DebugObject::SeventvPaintAssignments, nRemoved);
         postToThread([] {
             getApp()->getWindows()->invalidateChannelViewBuffers();
         });

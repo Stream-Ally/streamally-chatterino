@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2016 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #include "widgets/Window.hpp"
 
 #include "Application.hpp"
@@ -67,10 +71,10 @@ Window::Window(WindowType type, QWidget *parent)
     this->addMenuBar();
 #endif
 
-    this->bSignals_.emplace_back(
-        getApp()->getAccounts()->twitch.currentUserChanged.connect([this] {
+    this->signalHolder_.managedConnect(
+        getApp()->getAccounts()->twitch.currentUserChanged, [this] {
             this->onAccountSelected();
-        }));
+        });
     this->onAccountSelected();
 
     if (type == WindowType::Main)
@@ -236,7 +240,7 @@ void Window::addCustomTitlebarButtons()
             this->userLabel_->mapToGlobal(
                 this->userLabel_->rect().bottomLeft()));
     });
-    this->userLabel_->setMinimumWidth(20 * scale());
+    this->userLabel_->setMinimumWidth(20 * this->scale());
 
     // streamer mode
     this->streamerModeTitlebarIcon_ =

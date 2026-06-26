@@ -1,10 +1,18 @@
+// SPDX-FileCopyrightText: 2023 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
+#include "messages/Emote.hpp"
 #include "providers/seventv/eventapi/Subscription.hpp"
 #include "providers/seventv/SeventvCosmetics.hpp"
 
 #include <QJsonObject>
 #include <QString>
+#include <QVarLengthArray>
+
+#include <span>
 
 namespace chatterino::seventv::eventapi {
 
@@ -77,10 +85,23 @@ struct CosmeticCreateDispatch {
     bool validate() const;
 };
 
-struct EntitlementCreateDeleteDispatch {
-    /** id of the user */
-    QString userID;
+struct TwitchUser {
+    TwitchUser(const QJsonObject &connection);
+    QString id;
     QString userName;
+};
+
+struct KickUser {
+    KickUser(const QJsonObject &connection);
+
+    uint64_t id;
+    QString userName;
+};
+using User = std::variant<TwitchUser, KickUser>;
+
+struct EntitlementCreateDeleteDispatch {
+    QString seventvUsername;
+    QVarLengthArray<User, 1> connections;
     /** id of the entitlement */
     QString refID;
     CosmeticKind kind;
@@ -97,6 +118,11 @@ struct EmoteSetCreateDispatch {
     EmoteSetCreateDispatch(const QJsonObject &emoteSet);
 
     bool validate() const;
+};
+
+struct PersonalEmoteSetAdded {
+    std::span<const User> connections;
+    std::shared_ptr<const EmoteMap> emoteSet;
 };
 
 }  // namespace chatterino::seventv::eventapi

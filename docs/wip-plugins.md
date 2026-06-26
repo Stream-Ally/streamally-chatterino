@@ -219,6 +219,51 @@ c2.register_callback(
 )
 ```
 
+#### `current_account()`
+
+Returns a `TwitchAccount` representing the current account.
+
+#### `TwitchAccount`
+
+Represents a Twitch account. There can only be one selected at a time but
+unselected accounts stay valid. An account can become invalid if removed by the
+user in the settings. Using an invalid account produces an error.
+
+```lua
+local acc = c2.current_account()
+
+print(acc:is_valid()) -- true unless user removed account
+```
+
+##### `TwitchAccount:login()`
+
+Returns the login name of the account. This string may only contain lowercase ASCII.
+
+```lua
+print(acc:login()) -- "mm2pl"
+```
+
+##### `TwitchAccount:id()`
+
+Returns the Twitch user ID of the account. This uniquely and persistently identifies the account.
+
+```lua
+print(acc:id()) -- "117691339"
+```
+
+##### `TwitchAccount:color()`
+
+Returns the color in chat of this account. If the user has not sent any
+messages this will be `nil`.
+
+```lua
+print(acc:color()) -- "#ffdaa520"
+```
+
+##### `TwitchAccount:is_anon()`
+
+Returns `true` if this account is an anonymous account (no associated Twitch user).
+
 #### `ChannelType` enum
 
 This table describes channel types Chatterino supports. The values behind the
@@ -307,6 +352,15 @@ saddummys:get_display_name() -- "서새봄냥"
 
 <!-- F Korean Twitch, apparently you were not profitable enough -->
 
+##### `Channel:on_display_name_changed(cb)`
+
+Callback when the channel display name changes. The callback doesn't get any
+arguments, use [`Channel:get_display_name`](#channelget_display_name) to get the
+updated name.
+
+This returns a [`ConnectionHandle`](#connectionhandle) which can be used to
+disconnect the handler.
+
 ##### `Channel:send_message(message[, execute_commands])`
 
 Sends a message to the channel with the given text. If `execute_commands` is
@@ -368,6 +422,41 @@ channel:add_message(c2.Message.new({
 }))
 ```
 
+##### `Channel:on_messages_cleared(cb)`
+
+Callback when the messages in this channel have been cleared.
+This is called synchronously. It's also called when plugins clear messages
+([`Channel:clear_messages`](#channelclear_messages))
+where this can lead to infinite recursion.
+See also: [`ConnectionHandle:block`](#connectionhandleblock).
+
+##### `Channel:on_message_replaced(cb)`
+
+Callback when a message is replaced.
+This is called synchronously. It's also called when plugins replace messages
+([`Channel:replace_message`](#channelreplace_messagemessage-replacement-hint))
+where this can lead to infinite recursion.
+See also: [`ConnectionHandle:block`](#connectionhandleblock).
+
+`cb` receives:
+
+- `idx` (`number`) A one-based index of the replaced message
+- `old` ([`c2.Message`](#message))
+- `replacement` ([`c2.Message`](#message))
+
+##### `Channel:on_message_appended(cb)`
+
+Callback when a message is added.
+This is called synchronously. It's also called when plugins add messages
+([`Channel:add_message`](#channeladd_messagemessage-context-override_flags))
+where this can lead to infinite recursion.
+See also: [`ConnectionHandle:block`](#connectionhandleblock).
+
+`cb` receives:
+
+- `msg` ([`c2.Message`](#message))
+- `override_flags` ([`c2.MessageFlag`](#message) or `nil`)
+
 ##### `Channel:is_twitch_channel()`
 
 Returns `true` if the channel is a Twitch channel, that is its type name has
@@ -396,6 +485,42 @@ Returns `true` if the channel can be moderated by the current user.
 ##### `Channel:is_vip()`
 
 Returns `true` if the current user is a VIP in the channel.
+
+##### `Channel:message_snapshot(n_items)`
+
+Get a list of messages in this channel (starting from the most recent messages).
+The snapshot is returned as a usertype that wraps a C++ object.
+`n_items` is an upper bound, the actual number of messages returned might be lower.
+
+##### `Channel:last_message()`
+
+Get the most recent message. If this channel doesn't have any message, this returns `nil`.
+
+##### `Channel:replace_message(message, replacement[, hint])`
+
+Replace a specific message with a different one.
+`hint` is a one-based index (from the start) where the message is probably located. This is checked first. Otherwise the behavior is identical to the overload without this parameter.
+
+##### `Channel:replace_message_at(index, replacement)`
+
+Replace a message at an index with a different one.
+`index` is a one-based index (from the start) of the message to replace.
+
+##### `Channel:clear_messages()`
+
+Remove all messages in this channel.
+
+##### `Channel:find_message_by_id(id)`
+
+Find a message by its ID. If no message is found, `nil` is returned.
+
+##### `Channel:has_messages()`
+
+Check if the channel has any messages.
+
+##### `Channel:count_messages()`
+
+Count the number of messages in this channel.
 
 #### `HTTPMethod` enum
 
@@ -575,7 +700,26 @@ Closes the WebSocket connection.
 
 #### `Message`
 
-Allows creation of rich chat messages. This is currently limited but is expected to be expanded soon.
+Allows creation and modification of rich chat messages. A `Message` is
+Chatterino's representation of a chat message or any system message.
+The interface to Lua is currently limited but is expected to be expanded soon.
+
+Messages can be added to a [`Channel`](#channel). Once a message is added to a
+channel, it can't be modified anymore (except for its `flags`). These messages
+are termed "frozen" (immutable). You can check for this using the `frozen`
+property:
+
+```lua
+local my_msg = c2.Message.new({ id = "foobar" })
+assert(not my_msg.frozen)
+my_channel:add_message(my_msg)
+assert(my_msg.frozen)
+```
+
+A message has the same properties that it takes in its constructor (e.g.
+`msg.id` or `msg.flags`). If the message is not frozen (mutable), these
+properties can be modified. New elements can be added with
+[`append_element`](#messageappend_elementdata).
 
 ##### `Message.new(data)`
 
@@ -608,6 +752,59 @@ end)
 ```
 
 The full range of options can be found in the typing files ([LuaLS](./lua-meta/globals.lua), [TypeScript](./chatterino.d.ts)).
+Existing `MessageElement`s in `elements` field of the table will be cloned regardless if they can be created in Lua.
+
+##### `Message:elements()`
+
+Gets a reference to the message's elements. This can be indexed or iterated
+though. Through the return value, you can also remove elements. Note that
+currently, new elements can't be added here (use `Message:append_element`).
+
+The return value can be thought of as a table of `MessageElement`s.
+
+```lua
+local my_msg = c2.Message.new({
+  id = "foo",
+  elements = {
+    { type = "text", text = "foo" },
+    { type = "text", text = "bar" },
+    { type = "text", text = "baz" },
+  }
+})
+local elements = my_msg:elements()
+assert(#elements == 3)
+assert(elements[1].words[1] == "foo")
+assert(elements[2].words[1] == "bar")
+
+elements:erase(2) -- erase "bar"
+assert(#elements == 2)
+assert(elements[1].words[1] == "foo")
+assert(elements[2].words[1] == "baz")
+```
+
+##### `Message:append_element(data)`
+
+Creates a message element from a table (`data`) and appends it to the message.
+The structure of the table matches the one taken in `Message.new`'s `elements`.
+
+```lua
+local my_msg = c2.Message.new({ id = "foo" })
+my_msg:append_element({
+  type = "text",
+  text = "My text element",
+})
+```
+
+#### `MessageElement`
+
+A reference to an element inside a `Message` (essentially an in index into the
+elements). Note that modifications to the elements of the parent `Message` might
+change the actual element this is referring to.
+
+To distinguish different types of elements, check the `type` property. This
+takes the same values as `element.type` in the `Message` constructor.
+
+The full range of properties can be found in the typing files ([LuaLS](./lua-meta/globals.lua), [TypeScript](./chatterino.d.ts)).
 
 #### `LinkType` enum
 
@@ -622,6 +819,167 @@ This table describes links available to plugins.
 | `CopyToClipboard` | Any Unicode text                   | Copy value to clipboard                                                              | n/a                                   |
 | `JumpToMessage`   | ID of the message                  | Highlight the message with given ID in current split, do nothing if it was not found | n/a                                   |
 | `InsertText`      | Any text, command or emote         | Insert text into split input                                                         | n/a                                   |
+
+#### `ConnectionHandle`
+
+This type represents a handle to a registration of a callback for an event handler.
+Conceptually, the event has a _connection_ to the callback/handler.
+This handle can be used to modify that connection.
+It does not automatically disconnect the connection when it's destroyed (in `__gc`) -
+[`disconnect()`](#connectionhandledisconnect) has to be called manually.
+
+##### `ConnectionHandle:disconnect()`
+
+Disconnect the signal.
+
+##### `ConnectionHandle:block()`
+
+Block events on this connection.
+
+##### `ConnectionHandle:unblock()`
+
+Unblock events on this connection.
+
+##### `ConnectionHandle:is_blocked()`
+
+Is this connection currently blocked?
+
+##### `ConnectionHandle:is_connected()`
+
+Is this connection still connected?
+
+#### `Image`
+
+An image with some scale associated with it. Images are mainly used for emotes
+which often have different sizes (1x, 2x, 4x).
+
+Images have the following properties:
+
+- `url` (`string`): The url of this image.
+- `is_loaded` (`boolean`): Is this image currently loaded in RAM?
+- `is_empty` (`boolean`): Is this image empty?
+- `width` (`integer`): The scaled width of this image in pixels.
+- `height` (`integer`): The scaled height of this image in pixels.
+- `scale` (`number`): The scale factor applied to the image.
+- `size` (`[width, height]`): The scaled size of this image in pixels.
+- `animated` (`boolean`): Is this image animated? Note that this requires the image to be loaded.
+
+##### `Image.from_url(url[, scale[, expected_size]])`
+
+Create an image from a URL. Images are cached based on the URL.
+The other arguments are only used if the image is first created.
+
+Creating an image requires the [network permission](#permissions).
+
+- `scale` (`number`): The scale this image should have (e.g. `0.5`, `0.25`). Defaults to 1.
+- `expected_size` (`{width, height}`): The expected unscaled size of the image. This is only used as a hint when the image is not yet loaded to avoid layout shifts.
+
+##### `Image.empty()`
+
+Get the empty image.
+
+#### `ImageSet`
+
+A set of images. Each image should depict the same content at different sizes.
+
+Image sets have the following writable properties:
+
+- `image1` ([`Image`](#image)): The base image (1x).
+- `image2` ([`Image`](#image)): The first scaled image (often 2x, `scale=0.5`)
+- `image3` ([`Image`](#image)): The second scaled image (often 3x or 4x, `scale=0.25`)
+
+##### `ImageSet.new([image1[, image2[, image3]]])`
+
+Create a new image set.
+All arguments accept an [`Image`](#image) or a `string` (URL).
+
+Requires the [network permission](#permissions).
+
+#### `Split`
+
+A leaf node in the tab-tree of a Chatterino window.
+It shows a `channel` ([Channel](#channel)) along with a header and an input box.
+See [Anatomy of a Chatterino window](https://wiki.chatterino.com/Glossary/#anatomy-of-a-chatterino-window).
+
+#### `SplitContainerNode`
+
+A node in a split container.
+
+It can be one of the following `type`s (`SplitContainerNodeType`):
+
+- `EmptyRoot`: This is the only node in the `SplitContainer` and it's empty.
+- `Split`: This is a leaf node which holds a `split`.
+- `VerticalContainer`: The children of this node are arranged vertically. Each child's `vertical_flex` indicates how much space it takes.
+- `HorizontalContainer`: The children of this node are arranged horizontally. Each child's `horizontal_flex` indicates how much space it takes.
+
+It has the following fields:
+
+- `type` (`SplitContainerNodeType`) The type of this node
+- `split` ([`Split`](#split)?) The split contained in this code (if this is a split node)
+- `parent` ([`SplitContainerNode`](#splitcontainernode)?) The parent node
+- `horizontal_flex` (`number`) The amount of horizontal space this split takes
+- `vertical_flex` (`number`) The amount of vertical space this split takes
+
+##### `SplitContainerNode:children()`
+
+Get all children ([`SplitContainerNode`](#splitcontainernode)) of this node.
+
+#### `SplitContainer`
+
+A container with potentially multiple splits each tab in Chatterino contains one `SplitContainer`.
+It has the following fields:
+
+- `selected_split` ([`Split`](#split)) The currently selected split.
+- `base_node` ([`SplitContainerNode`](#splitcontainernode)) The top level node.
+
+##### `SplitContainer:splits()`
+
+Get all splits ([`Split`](#split)) contained in this container.
+
+#### `SplitNotebook`
+
+The tab bar in a Chatterino window. Each tab is called a "page" which holds a `SplitContainer`.
+
+- `selected_page` ([`SplitContainer`](#splitcontainer)?) The currently selected page.
+- `page_count` (`integer`) The number of pages/tabs.
+
+##### `SplitNotebook:page_at(i)`
+
+Get the notebook page at a specific index.
+`i` is the zero based index of the page.
+Returns the page ([`SplitContainer`](#splitcontainer)) contained at the specified index.
+
+#### `Window`
+
+It has the following fields:
+
+- `notebook` ([`SplitNotebook`](#splitnotebook)) The notebook of this window.
+- `type` (`WindowType`) The type of this window.
+
+#### `WindowManager`
+
+Conceptually the windows in Chatterino are the root nodes of a tree with split containers as intermediate nodes and splits as leaf nodes.
+
+[`docs/resources/window-graph.lua`](resources/window-graph.lua) is a utility to generate a GraphViz description of the window state.
+For example, the following tab is shown below:
+
+![Screenshot of a Chatterino tab](resources/window-example.png)
+
+GraphViz output:
+![GraphViz output for tab](resources/window-example.svg)
+
+`WindowManager` has the following fields:
+
+- `main_window` ([`Window`](#window)) The main window.
+- `last_selected_window` ([`Window`](#window)) The last selected window (or the main window if none were selected last).
+
+##### `WindowManager:all()`
+
+Get all open windows.
+
+#### `c2.windows`
+
+The global [`WindowManager`](#windowmanager).
 
 ### Input/Output API
 
@@ -733,6 +1091,31 @@ Equivalent to `io.output():write(...)`. See [`io.output()`](#outputfile_or_name)
 and [`file:write()`](https://www.lua.org/manual/5.4/manual.html#pdf-file:write).
 
 See [official documentation](https://www.lua.org/manual/5.4/manual.html#pdf-io.write)
+
+### Debug API
+
+To aid debugging, Chatterino provides Lua's `debug.traceback` function.
+Other functions from the `debug` library are not exposed.
+
+#### `traceback([thread,] [message [, level]])`
+
+Returns a stack trace of `thread` or the current thread with an optional `message` prepended.
+`level` can be used to skip some frames. By default, it's 1 (skipping the current function).
+
+This can be used as a message handler in `xpcall`:
+
+```lua
+local function main()
+  c2.ThisDoesNotExistAndWillError()
+end
+
+local ok, result = xpcall(main, debug.traceback)
+if not ok then
+  print(result)
+end
+```
+
+See [official documentation](https://www.lua.org/manual/5.4/manual.html#pdf-debug.traceback)
 
 ### Changed globals
 

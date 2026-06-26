@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2022 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
 #include "common/Aliases.hpp"
@@ -20,6 +24,7 @@ namespace chatterino {
 
 class ImageSet;
 class Channel;
+class KickChannel;
 namespace seventv::eventapi {
 struct EmoteAddDispatch;
 struct EmoteUpdateDispatch;
@@ -108,6 +113,10 @@ public:
     void setGlobalEmotes(std::shared_ptr<const EmoteMap> emotes);
     static void loadChannelEmotes(
         const std::weak_ptr<Channel> &channel, const QString &channelId,
+        std::function<void(EmoteMap &&, ChannelInfo)> callback,
+        bool manualRefresh, bool cacheHit);
+    static void loadKickChannelEmotes(
+        const std::weak_ptr<KickChannel> &channel, uint64_t userID,
         std::function<void(EmoteMap &&, ChannelInfo)> callback,
         bool manualRefresh, bool cacheHit);
 

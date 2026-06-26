@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2016 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #include "widgets/splits/Split.hpp"
 
 #include "Application.hpp"
@@ -8,6 +12,8 @@
 #include "controllers/commands/CommandController.hpp"
 #include "controllers/hotkeys/HotkeyController.hpp"
 #include "controllers/notifications/NotificationController.hpp"
+#include "providers/kick/KickAccount.hpp"
+#include "providers/kick/KickChannel.hpp"
 #include "providers/twitch/TwitchAccount.hpp"
 #include "providers/twitch/TwitchChannel.hpp"
 #include "providers/twitch/TwitchIrcServer.hpp"
@@ -17,6 +23,7 @@
 #include "singletons/Theme.hpp"
 #include "singletons/WindowManager.hpp"
 #include "util/CustomPlayer.hpp"
+#include "util/MultiChannel.hpp"
 #include "util/StreamLink.hpp"
 #include "widgets/ChatterListWidget.hpp"
 #include "widgets/dialogs/SelectChannelDialog.hpp"
@@ -105,13 +112,17 @@ Split::Split(QWidget *parent)
     this->input_->ui_.textEdit->installEventFilter(parent);
 
     // update placeholder text on Twitch account change and channel change
-    this->bSignals_.emplace_back(
-        getApp()->getAccounts()->twitch.currentUserChanged.connect([this] {
+    this->signalHolder_.managedConnect(
+        getApp()->getAccounts()->twitch.currentUserChanged, [this] {
             this->updateInputPlaceholder();
-        }));
-    this->signalHolder_.managedConnect(channelChanged, [this] {
+        });
+    this->signalHolder_.managedConnect(this->channelChanged, [this] {
         this->updateInputPlaceholder();
     });
+    this->signalHolder_.managedConnect(
+        getApp()->getAccounts()->kick.currentUserChanged, [this] {
+            this->updateInputPlaceholder();
+        });
     this->updateInputPlaceholder();
 
     // clear SplitInput selection when selecting in ChannelView
@@ -473,17 +484,17 @@ void Split::addShortcuts()
         {"createClip",
          [this](const std::vector<QString> &) -> QString {
              // Alt+X: create clip LUL
-             if (const auto type = this->getChannel()->getType();
+             auto channel = this->getSelectedChannel();
+             if (const auto type = channel->getType();
                  type != Channel::Type::Twitch &&
                  type != Channel::Type::TwitchWatching)
              {
                  return "Cannot create clips in a non-Twitch channel.";
              }
 
-             auto *twitchChannel =
-                 dynamic_cast<TwitchChannel *>(this->getChannel().get());
+             auto *twitchChannel = dynamic_cast<TwitchChannel *>(channel.get());
 
-             twitchChannel->createClip();
+             twitchChannel->createClip({}, {});
              return "";
          }},
         {"reloadEmotes",
@@ -515,7 +526,7 @@ void Split::addShortcuts()
          }},
         {"setModerationMode",
          [this](const std::vector<QString> &arguments) -> QString {
-             if (!this->getChannel()->isTwitchChannel())
+             if (!this->getSelectedChannel()->isTwitchOrKickChannel())
              {
                  return "Cannot set moderation mode in a non-Twitch "
                         "channel.";
@@ -586,7 +597,8 @@ void Split::addShortcuts()
          }},
         {"setChannelNotification",
          [this](const std::vector<QString> &arguments) -> QString {
-             if (!this->getChannel()->isTwitchChannel())
+             auto channel = this->getSelectedChannel();
+             if (!channel->isTwitchChannel())
              {
                  return "Cannot set channel notifications for a non-Twitch "
                         "channel.";
@@ -609,7 +621,7 @@ void Split::addShortcuts()
              }
 
              auto *notifications = getApp()->getNotifications();
-             const QString channelName = this->getChannel()->getName();
+             const QString channelName = channel->getName();
              switch (mode)
              {
                  case 0:
@@ -669,7 +681,8 @@ void Split::addShortcuts()
          }},
         {"setHighlightSounds",
          [this](const std::vector<QString> &arguments) -> QString {
-             if (!this->getChannel()->isTwitchChannel())
+             auto channelPtr = this->getSelectedChannel();
+             if (!channelPtr->isTwitchChannel())
              {
                  return "Cannot set highlight sounds in a non-Twitch "
                         "channel.";
@@ -692,7 +705,7 @@ void Split::addShortcuts()
                  }
              }
 
-             const QString channel = this->getChannel()->getName();
+             const QString channel = channelPtr->getName();
 
              switch (mode)
              {
@@ -709,7 +722,7 @@ void Split::addShortcuts()
          }},
         {"openSubscriptionPage",
          [this](const auto &) -> QString {
-             if (!this->getChannel()->isTwitchChannel())
+             if (!this->getSelectedChannel()->isTwitchChannel())
              {
                  return "Cannot subscribe to a non-Twitch "
                         "channel.";
@@ -717,6 +730,50 @@ void Split::addShortcuts()
 
              this->openSubPage();
              return "";
+         }},
+        {"changeMultichannelContext",
+         [this](const std::vector<QString> &arguments) -> QString {
+             if (arguments.empty())
+             {
+                 return "Expected at least one argument";
+             }
+             auto *mc =
+                 dynamic_cast<MultiChannel *>(this->channel_.get().get());
+             if (!mc || mc->channels().empty())
+             {
+                 return {};
+             }
+
+             size_t nextIndex = mc->activeChannelIndex();
+             QStringView arg = arguments[0];
+             if (arg == u"next")
+             {
+                 nextIndex =
+                     (mc->activeChannelIndex() + 1) % mc->channels().size();
+             }
+             else if (arg == u"prev")
+             {
+                 if (mc->activeChannelIndex() == 0)
+                 {
+                     nextIndex = mc->channels().size() - 1;
+                 }
+                 else
+                 {
+                     nextIndex -= 1;
+                 }
+             }
+             else
+             {
+                 bool ok = false;
+                 nextIndex = arg.toULongLong(&ok);
+                 if (!ok)
+                 {
+                     return "Failed to parse argument as integer";
+                 }
+             }
+             mc->setActiveChannelIndex(nextIndex);
+             getApp()->getWindows()->forceLayoutChannelViews();
+             return {};
          }},
     };
 
@@ -744,6 +801,37 @@ SplitInput &Split::getInput()
 
 void Split::updateInputPlaceholder()
 {
+    auto channel = this->getChannel();
+    if (auto *multiChannel = dynamic_cast<MultiChannel *>(channel.get()))
+    {
+        const auto *active = multiChannel->activeChannel();
+        if (!active)
+        {
+            this->input_->ui_.textEdit->setPlaceholderText({});
+        }
+        else
+        {
+            this->input_->ui_.textEdit->setPlaceholderText(
+                u"Send message in " % active->channel->getName() % u"...");
+        }
+        return;
+    }
+    if (this->getChannel()->isKickChannel())
+    {
+        auto user = getApp()->getAccounts()->kick.current();
+        QString placeholderText = [&] {
+            if (user->isAnonymous())
+            {
+                // FIXME: once we have a proper OAuth for Kick (device auth or similar),
+                // we can update this label to "Log in to send messages...".
+                return QString{};
+            }
+            return QString(u"Send message as " % user->username() % u"...");
+        }();
+        this->input_->ui_.textEdit->setPlaceholderText(placeholderText);
+        return;
+    }
+
     if (!this->getChannel()->isTwitchChannel())
     {
         return;
@@ -821,6 +909,21 @@ ChannelPtr Split::getChannel() const
     return this->channel_.get();
 }
 
+ChannelPtr Split::getSelectedChannel() const
+{
+    ChannelPtr chan = this->channel_.get();
+    auto *multiChannel = dynamic_cast<MultiChannel *>(chan.get());
+    if (multiChannel)
+    {
+        const auto *active = multiChannel->activeChannel();
+        if (active)
+        {
+            chan = active->channel;
+        }
+    }
+    return chan;
+}
+
 void Split::setChannel(IndirectChannel newChannel)
 {
     this->channel_ = newChannel;
@@ -830,10 +933,20 @@ void Split::setChannel(IndirectChannel newChannel)
     this->usermodeChangedConnection_.disconnect();
     this->roomModeChangedConnection_.disconnect();
     this->indirectChannelChangedConnection_.disconnect();
+    this->channelSignalHolder_.clear();
 
     TwitchChannel *tc = dynamic_cast<TwitchChannel *>(newChannel.get().get());
+    auto *kc = dynamic_cast<KickChannel *>(newChannel.get().get());
+    auto *mc = dynamic_cast<MultiChannel *>(newChannel.get().get());
 
-    if (tc != nullptr)
+    if (mc)
+    {
+        this->channelSignalHolder_.managedConnect(
+            mc->activeChannelChanged, [this] {
+                this->updateInputPlaceholder();
+            });
+    }
+    else if (tc != nullptr)
     {
         this->usermodeChangedConnection_ = tc->userStateChanged.connect([this] {
             this->header_->updateIcons();
@@ -843,6 +956,27 @@ void Split::setChannel(IndirectChannel newChannel)
         this->roomModeChangedConnection_ = tc->roomModesChanged.connect([this] {
             this->header_->updateRoomModes();
         });
+
+        this->channelSignalHolder_.managedConnect(
+            tc->sendWaitUpdate, [this](const QString &text) {
+                this->getInput().setSendWaitStatus(text);
+            });
+    }
+    else if (kc != nullptr)
+    {
+        this->usermodeChangedConnection_ = kc->userStateChanged.connect([this] {
+            this->header_->updateIcons();
+            this->header_->updateRoomModes();
+        });
+
+        this->roomModeChangedConnection_ = kc->roomModesChanged.connect([this] {
+            this->header_->updateRoomModes();
+        });
+
+        this->channelSignalHolder_.managedConnect(
+            kc->sendWaitUpdate, [this](const QString &text) {
+                this->getInput().setSendWaitStatus(text);
+            });
     }
 
     this->indirectChannelChangedConnection_ =
@@ -892,6 +1026,16 @@ void Split::setModerationMode(bool value)
 bool Split::getModerationMode() const
 {
     return this->moderationMode_;
+}
+
+std::optional<bool> Split::checkSpellingOverride() const
+{
+    return this->input_->checkSpellingOverride();
+}
+
+void Split::setCheckSpellingOverride(std::optional<bool> override)
+{
+    this->input_->setCheckSpellingOverride(override);
 }
 
 void Split::insertTextToInput(const QString &text)
@@ -1104,12 +1248,16 @@ void Split::clear()
 
 void Split::openInBrowser()
 {
-    auto channel = this->getChannel();
+    auto channel = this->getSelectedChannel();
 
     if (auto *twitchChannel = dynamic_cast<TwitchChannel *>(channel.get()))
     {
         QDesktopServices::openUrl("https://www.twitch.tv/" +
                                   twitchChannel->getName());
+    }
+    else if (auto *kc = dynamic_cast<KickChannel *>(channel.get()))
+    {
+        QDesktopServices::openUrl("https://kick.com/" + kc->slug());
     }
 }
 
@@ -1122,37 +1270,53 @@ void Split::openWhispersInBrowser()
 
 void Split::openBrowserPlayer()
 {
-    this->openChannelInBrowserPlayer(this->getChannel());
+    this->openChannelInBrowserPlayer(this->getSelectedChannel());
 }
 
 void Split::openModViewInBrowser()
 {
-    auto channel = this->getChannel();
+    auto channel = this->getSelectedChannel();
 
     if (auto *twitchChannel = dynamic_cast<TwitchChannel *>(channel.get()))
     {
         QDesktopServices::openUrl("https://www.twitch.tv/moderator/" +
                                   twitchChannel->getName());
     }
+    else if (auto *kc = dynamic_cast<KickChannel *>(channel.get()))
+    {
+        QDesktopServices::openUrl("https://dashboard.kick.com/moderator/" +
+                                  kc->slug());
+    }
 }
 
 void Split::openInStreamlink()
 {
-    this->openChannelInStreamlink(this->getChannel()->getName());
+    auto chan = this->getSelectedChannel();
+    auto *kc = dynamic_cast<KickChannel *>(chan.get());
+    if (kc)
+    {
+        openStreamlinkForChannel(kc->slug(), u"kick.com/");
+        return;
+    }
+    this->openChannelInStreamlink(chan->getName());
 }
 
 void Split::openWithCustomScheme()
 {
-    auto *const channel = this->getChannel().get();
+    auto *const channel = this->getSelectedChannel().get();
     if (auto *const twitchChannel = dynamic_cast<TwitchChannel *>(channel))
     {
         this->openChannelInCustomPlayer(twitchChannel->getName());
+    }
+    else if (auto *kc = dynamic_cast<KickChannel *>(channel))
+    {
+        openInCustomPlayer(kc->slug(), u"https://kick.com/");
     }
 }
 
 void Split::openChatterList()
 {
-    auto channel = this->getChannel();
+    auto channel = this->getSelectedChannel();
     if (!channel)
     {
         qCWarning(chatterinoWidget)
@@ -1176,7 +1340,8 @@ void Split::openChatterList()
 
     QObject::connect(chatterDock, &ChatterListWidget::userClicked,
                      [this](const QString &userLogin) {
-                         this->view_->showUserInfoPopup(userLogin);
+                         this->view_->showUserInfoPopup(
+                             userLogin, MessagePlatform::AnyOrTwitch);
                      });
 
     chatterDock->resize(chatterListWidth, chatterListHeight);
@@ -1187,7 +1352,7 @@ void Split::openChatterList()
 
 void Split::openSubPage()
 {
-    ChannelPtr channel = this->getChannel();
+    ChannelPtr channel = this->getSelectedChannel();
 
     if (auto *twitchChannel = dynamic_cast<TwitchChannel *>(channel.get()))
     {
@@ -1244,19 +1409,6 @@ void Split::showSearch(bool singleChannel)
     }
 
     popup->show();
-}
-
-void Split::reloadChannelAndSubscriberEmotes()
-{
-    auto channel = this->getChannel();
-
-    if (auto *twitchChannel = dynamic_cast<TwitchChannel *>(channel.get()))
-    {
-        twitchChannel->refreshTwitchChannelEmotes(true);
-        twitchChannel->refreshBTTVChannelEmotes(true);
-        twitchChannel->refreshFFZChannelEmotes(true);
-        twitchChannel->refreshSevenTVChannelEmotes(true);
-    }
 }
 
 void Split::reconnect()
@@ -1320,9 +1472,10 @@ void Split::drag()
     stopDraggingSplit();
 }
 
-void Split::setInputReply(const MessagePtr &reply)
+void Split::setInputReply(const MessagePtr &reply,
+                          std::weak_ptr<Channel> channel)
 {
-    this->input_->setReply(reply);
+    this->input_->setReply(reply, std::move(channel));
 }
 
 void Split::unpause()

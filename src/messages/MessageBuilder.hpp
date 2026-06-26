@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2017 Contributors to Chatterino <https://chatterino.com>
+//
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
 #include "common/Aliases.hpp"
@@ -29,12 +33,14 @@ using EmotePtr = std::shared_ptr<const Emote>;
 
 class Channel;
 class TwitchChannel;
+class ChannelChatters;
 class MessageThread;
 class IgnorePhrase;
 struct HelixVip;
 using HelixModerator = HelixVip;
 struct ChannelPointReward;
 struct TwitchEmoteOccurrence;
+struct HelixPinnedChatMessage;
 
 namespace linkparser {
 struct Parsed;
@@ -76,7 +82,6 @@ struct MessageParseArgs {
     bool isReceivedWhisper = false;
     bool isSentWhisper = false;
     bool trimSubscriberUsername = false;
-    bool isStaffOrBroadcaster = false;
     bool isSubscriptionMessage = false;
     bool allowIgnore = true;
     bool isAction = false;
@@ -139,7 +144,7 @@ public:
     std::weak_ptr<const Message> weakOf();
 
     void append(std::unique_ptr<MessageElement> element);
-    void addLink(const linkparser::Parsed &parsedLink, const QString &source);
+    void addLink(const linkparser::Parsed &parsedLink, QStringView source);
 
     template <typename T, typename... Args>
     T *emplace(Args &&...args)
@@ -162,6 +167,13 @@ public:
     // Returns the TextElement that was emplaced.
     TextElement *emplaceSystemTextAndUpdate(const QString &text,
                                             QString &toUpdate);
+
+    void addWordFromUserMessage(QStringView string,
+                                ChannelChatters *chatters = nullptr);
+
+    void appendEmote(const EmotePtr &emote);
+
+    MessageColor textColor() const;
 
     static void triggerHighlights(const Channel *channel,
                                   const HighlightAlert &alert);
@@ -237,10 +249,9 @@ public:
     static MessagePtrMut makeSystemMessageWithUser(
         const QString &text, const QString &loginName,
         const QString &displayName, const MessageColor &userColor,
-        const QTime &time);
+        const QTime &time, const Communi::IrcMessage &ircMessage);
 
-    static MessagePtrMut makeSubgiftMessage(const QString &text,
-                                            const QVariantMap &tags,
+    static MessagePtrMut makeSubgiftMessage(const QVariantMap &tags,
                                             const QTime &time,
                                             TwitchChannel *channel);
 
@@ -252,6 +263,11 @@ public:
     static MessagePtrMut makeClearChatMessage(const QDateTime &now,
                                               const QString &actor,
                                               uint32_t count = 1);
+
+    static MessagePtrMut makePinSuccessMessage(QString text, const QString &id);
+
+    static MessagePtrMut makeCurrentPinnedMessage(
+        const TwitchChannel &channel, const HelixPinnedChatMessage &pin);
 
 private:
     struct TextState {
@@ -278,6 +294,8 @@ private:
                        TwitchChannel *twitchChannel,
                        bool trimSubscriberUsername);
     void parseMessageID(const QVariantMap &tags);
+    /// Parses most of them message flags based on the given tags
+    void parseMessageTags(const QVariantMap &tags);
 
     /// Parses the room-ID this message was received in
     ///
@@ -317,6 +335,7 @@ private:
                             TwitchChannel *twitchChannel);
     void appendChatterinoBadges(const QString &userID);
     void appendFfzBadges(TwitchChannel *twitchChannel, const QString &userID);
+    void appendBttvBadges(const QString &userID);
     void appendSeventvBadges(const QString &userID);
     void appendStreamallyBadges(const QString &userID);
 

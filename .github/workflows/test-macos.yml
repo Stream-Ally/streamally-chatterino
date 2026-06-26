@@ -24,20 +24,20 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-latest]
-        qt-version: [6.7.1]
+        os: [macos-14]
+        qt-version: [6.8.3, 6.11.1]
       fail-fast: false
     env:
       QT_MODULES: qtimageformats
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           submodules: recursive
           fetch-depth: 0 # allows for tags access
 
       - name: Install Qt
-        uses: jurplel/install-qt-action@v4.3.0
+        uses: jurplel/install-qt-action@v4.3.1
         with:
           cache: true
           cache-key-prefix: ${{ runner.os }}-QtCache-${{ matrix.qt-version }}-v2
@@ -50,8 +50,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          # brew install openssl rapidjson p7zip create-dmg cmake boost
-          brew install openssl rapidjson p7zip create-dmg boost
+          # brew install openssl rapidjson p7zip create-dmg cmake boost hunspell
+          brew install openssl rapidjson p7zip create-dmg boost hunspell
 
       - name: Install httpbox
         run: |
@@ -69,6 +69,7 @@ jobs:
               -DBUILD_TESTS=On \
               -DBUILD_APP=OFF \
               -DUSE_PRECOMPILED_HEADERS=OFF \
+              -DCHATTERINO_SPELLCHECK=On \
               ..
           make -j"$(sysctl -n hw.logicalcpu)"
 
