@@ -6,11 +6,13 @@
 
 #include "common/Aliases.hpp"
 #include "StreamAllyBadge.h"
+#include "StreamAllyUser.h"
 #include "util/FunctionEventFilter.hpp"
 
 #include <memory>
 #include <optional>
 #include <QTimer>
+#include <unordered_map>
 
 namespace chatterino {
 
@@ -23,10 +25,10 @@ class StreamAllyAPI : public QObject
 
     QTimer *_fetchTimer = nullptr;
 
-    std::vector<StreamAllyBadge> badges;
+    std::unordered_map<StreamAllyUserId, StreamAllyUser> streamAllyUsers;
 
-    // Twitch user ID -> StreamAllBadge index
-    std::unordered_map<UserId, int> usersWithBadge;
+    // References stream ally user ID
+    std::unordered_map<UserId, StreamAllyUserId> kickUsers;
 
     void FetchStreamAllyBadges();
 

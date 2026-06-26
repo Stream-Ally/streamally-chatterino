@@ -19,19 +19,56 @@ namespace  chatterino {
 
 void StreamAllyAPI::FetchStreamAllyBadges()
 {
-    static QUrl url("https://streamally-production-f5e33d0e6f8f.herokuapp.com/api/public/extension/badge");
+
 
     // 18, 36, 54, 72
     NetworkRequest(url)
         .concurrent()
         .onSuccess([this] (NetworkResult result) {
             // Clear current data
-            badges.clear();
-            usersWithBadge.clear();
+            streamAllyUsers.clear();
+            kickUsers.clear();
 
+            // Root
             auto jsonRoot = result.parseJson();
 
-            auto jsonBadges = jsonRoot.value("data").toArray();
+            // Load subjects (users)
+            auto jsonSubjects = jsonRoot.value("subjects").toArray();
+
+            for (const auto &jsonSubject : jsonSubjects)
+            {
+                auto jsonSubjectObj = jsonSubject.toObject();
+                auto jsonIdentities = jsonSubjectObj["identities"].toArray();
+
+                std::unordered_map<QString, StreamAllyIdentity> identities;
+
+                for (const auto &jsonIdentity : jsonIdentities)
+                {
+                    auto jsonIdentityObj = jsonIdentity.toObject();
+
+                    auto identity = StreamAllyIdentity {
+                        .platform = jsonIdentityObj["platform"].toString(),
+                        .login = jsonIdentityObj["login"].toString(),
+                        .displayName = jsonIdentityObj["displayName"].toString(),
+                        .providerUserId = {jsonIdentityObj["providerUserId"].toString()},
+                    };
+
+                    identities[jsonIdentityObj["platform"].toString()] = std::move(identity);
+                }
+
+                auto saUser = StreamAllyUser {
+                    .streamAllyId = jsonSubjectObj["id"].toString(),
+                    .identities = std::move(identities),
+                };
+
+                streamAllyUsers[{saUser.streamAllyId}] = std::move(saUser);
+            }
+
+            StreamAllyBadge test;
+
+            /*
+
+            auto jsonBadges = jsonRoot.value("badgeDefinitions").toArray();
 
             constexpr QSize baseImgSize(18, 18);
 
@@ -55,6 +92,7 @@ void StreamAllyAPI::FetchStreamAllyBadges()
                     .tooltip = Tooltip{jsonBadgeObj["description"].toString()},
                     .homePage = Url{}
                 };
+                auto jsonSubjectsObj = json
 
                 // Load badge's owners
                 std::vector<StreamAllyUser> owners;
@@ -65,7 +103,7 @@ void StreamAllyAPI::FetchStreamAllyBadges()
 
                     auto saUser = StreamAllyUser {
                         .streamAllyId = jsonOwnerObj["streamAllyId"].toString(),
-                        .twitchId = UserId {jsonOwnerObj["twitchId"].toString()}
+                        .providerUserId = UserId {jsonOwnerObj["twitchId"].toString()}
                     };
 
                     owners.push_back(std::move(saUser));
@@ -87,6 +125,7 @@ void StreamAllyAPI::FetchStreamAllyBadges()
                     usersWithBadge[UserId{jsonOwnerObj["twitchId"].toString()}] = badges.size() - 1;
                 }
             }
+            */
         })
     .execute();
 }
@@ -112,9 +151,11 @@ StreamAllyAPI::StreamAllyAPI()
 
 std::optional<StreamAllyBadge*> StreamAllyAPI::getBadge(const UserId &id)
 {
-    if (!usersWithBadge.contains(id)) return std::nullopt;
+    //if (!usersWithBadge.contains(id)) return std::nullopt;
 
-    return &badges.at(usersWithBadge[id]);
+    //return &badges.at(usersWithBadge[id]);
+
+    return nullptr;
 }
 
 }  // namespace chatterino
