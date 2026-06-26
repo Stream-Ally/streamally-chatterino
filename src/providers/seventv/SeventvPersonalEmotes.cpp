@@ -94,8 +94,7 @@ void SeventvPersonalEmotes::updateEmoteSet(
         {
             return;
         }
-        SeventvEmotes::addEmote(emoteSet->second, dispatch,
-                                SeventvEmoteSetKind::Personal);
+        SeventvEmotes::addEmote(emoteSet->second, dispatch);
     }
 }
 void SeventvPersonalEmotes::updateEmoteSet(
@@ -105,8 +104,7 @@ void SeventvPersonalEmotes::updateEmoteSet(
     auto emoteSet = this->emoteSets_.find(id);
     if (emoteSet != this->emoteSets_.end())
     {
-        SeventvEmotes::updateEmote(emoteSet->second, dispatch,
-                                   SeventvEmoteSetKind::Personal);
+        SeventvEmotes::updateEmote(emoteSet->second, dispatch);
     }
 }
 void SeventvPersonalEmotes::updateEmoteSet(

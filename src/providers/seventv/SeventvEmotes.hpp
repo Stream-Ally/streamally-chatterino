@@ -91,8 +91,7 @@ using SeventvEmoteSetFlags = FlagsEnum<SeventvEmoteSetFlag>;
 
 namespace seventv::detail {
 
-EmoteMap parseEmotes(const QJsonArray &emoteSetEmotes,
-                     SeventvEmoteSetKind kind);
+EmoteMap parseEmotes(const QJsonArray &emoteSetEmotes, bool isGlobal);
 
 }  // namespace seventv::detail
 
@@ -129,8 +128,7 @@ public:
      */
     static std::optional<EmotePtr> addEmote(
         Atomic<std::shared_ptr<const EmoteMap>> &map,
-        const seventv::eventapi::EmoteAddDispatch &dispatch,
-        SeventvEmoteSetKind kind = SeventvEmoteSetKind::Channel);
+        const seventv::eventapi::EmoteAddDispatch &dispatch);
 
     /**
      * Updates an emote in this `map`.
@@ -141,8 +139,7 @@ public:
      */
     static std::optional<EmotePtr> updateEmote(
         Atomic<std::shared_ptr<const EmoteMap>> &map,
-        const seventv::eventapi::EmoteUpdateDispatch &dispatch,
-        SeventvEmoteSetKind kind = SeventvEmoteSetKind::Channel);
+        const seventv::eventapi::EmoteUpdateDispatch &dispatch);
 
     /**
      * Removes an emote from this `map`.

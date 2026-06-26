@@ -1088,7 +1088,7 @@ void SplitHeader::updateIcons()
         auto moderationMode = this->split_->getModerationMode() &&
                               !getSettings()->moderationActions.empty();
 
-        if (twitchChannel->getName() == "haiset")
+        if (channel->getName() == "haiset")
         {
             //this->streamAllyImage_->show();
         }

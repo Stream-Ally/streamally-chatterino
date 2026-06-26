@@ -274,7 +274,7 @@ void SeventvEmotes::loadChannelEmotes(
             const auto emoteSet = json["emote_set"].toObject();
             const auto parsedEmotes = emoteSet["emotes"].toArray();
 
-            auto emoteMap = parseEmotes(parsedEmotes, false);
+            auto emoteMap = parseEmotes(parsedEmotes, {});
             bool hasEmotes = !emoteMap.empty();
 
             qCDebug(chatterinoSeventv)
@@ -374,7 +374,7 @@ void SeventvEmotes::loadKickChannelEmotes(
             const auto parsedEmotes = emoteSet["emotes"].toArray();
 
             auto emoteMap =
-                parseEmotes(parsedEmotes, SeventvEmoteSetKind::Channel);
+                parseEmotes(parsedEmotes, {});
             bool hasEmotes = !emoteMap.empty();
 
             qCDebug(chatterinoSeventv)
@@ -538,7 +538,7 @@ void SeventvEmotes::getEmoteSet(
 
             auto parsedEmotes = json["emotes"].toArray();
 
-            auto emoteMap = parseEmotes(parsedEmotes, false);
+            auto emoteMap = parseEmotes(parsedEmotes, {});
 
             qCDebug(chatterinoSeventv) << "Loaded" << emoteMap.size()
                                        << "7TV Emotes from" << emoteSetId;

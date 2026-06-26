@@ -234,7 +234,7 @@ void Application::initialize(Settings &settings, const Paths &paths)
         {
             QDesktopServices::openUrl(
                 QUrl("https://www.chatterino.com/changelog"));
-        }*/
+        }
     }
 
     if (!this->args_.isFramelessEmbed)

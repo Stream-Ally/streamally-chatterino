@@ -119,8 +119,7 @@ void KickChannel::reloadSeventvEmotes(bool manualRefresh)
             const auto json = jsonDoc.object();
             const auto emoteSet = json["emote_set"].toObject();
             const auto parsedEmotes = emoteSet["emotes"].toArray();
-            auto emoteMap = seventv::detail::parseEmotes(
-                parsedEmotes, SeventvEmoteSetKind::Channel);
+            auto emoteMap = seventv::detail::parseEmotes(parsedEmotes, {});
             this->seventvEmotes_.set(
                 std::make_shared<const EmoteMap>(emoteMap));
         });
