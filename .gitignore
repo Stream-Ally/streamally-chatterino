@@ -128,3 +128,4 @@ aqtinstall.log
 
 # Envirionment file
 /.env
+/src/providers/streamally/StreamAllyAPIConfidential.h

@@ -10,19 +10,21 @@
 #include "messages/Emote.hpp"
 #include "messages/Image.hpp"
 #include "singletons/WindowManager.hpp"
+#include "StreamAllyAPIConfidential.h"
 #include "StreamAllyBadge.h"
+#include "StreamAllyEnv.h"
 #include "widgets/Window.hpp"
 
 #include <QUrl>
+
+#include <vector>
 
 namespace  chatterino {
 
 void StreamAllyAPI::FetchStreamAllyBadges()
 {
-
-
     // 18, 36, 54, 72
-    NetworkRequest(url)
+    NetworkRequest(STREAMALLY_API_URL)
         .concurrent()
         .onSuccess([this] (NetworkResult result) {
             // Clear current data
@@ -39,6 +41,7 @@ void StreamAllyAPI::FetchStreamAllyBadges()
             {
                 auto jsonSubjectObj = jsonSubject.toObject();
                 auto jsonIdentities = jsonSubjectObj["identities"].toArray();
+                auto subjectId = jsonSubjectObj["id"].toString();
 
                 std::unordered_map<QString, StreamAllyIdentity> identities;
 
@@ -53,18 +56,70 @@ void StreamAllyAPI::FetchStreamAllyBadges()
                         .providerUserId = {jsonIdentityObj["providerUserId"].toString()},
                     };
 
+                    if (identity.platform == "kick")
+                    {
+                        kickUsers[{identity.providerUserId}] = {subjectId};
+                    }
+
                     identities[jsonIdentityObj["platform"].toString()] = std::move(identity);
                 }
 
                 auto saUser = StreamAllyUser {
-                    .streamAllyId = jsonSubjectObj["id"].toString(),
+                    .streamAllyId = subjectId,
                     .identities = std::move(identities),
                 };
 
                 streamAllyUsers[{saUser.streamAllyId}] = std::move(saUser);
             }
 
-            StreamAllyBadge test;
+            auto jsonGrants = jsonRoot["grants"].toArray();
+
+            for (const auto &jsonGrant : jsonGrants)
+            {
+                auto jsonGrantObj = jsonGrant.toObject();
+
+                streamAllyUsers[{jsonGrantObj["subjectId"].toString()}].ownedBadges.emplace(jsonGrantObj["badgeDefinitionId"].toString());
+            }
+
+            auto jsonBadges = jsonRoot["badgeDefinitions"].toArray();
+            constexpr QSize baseImgSize(18, 18);
+
+            for (const auto &jsonBadge : jsonBadges)
+            {
+                auto jsonBadgeObj = jsonBadge.toObject();
+                auto jsonImagesObj = jsonBadgeObj["assets"].toObject();
+
+                auto emote = Emote{
+                    .name = EmoteName{jsonBadgeObj["name"].toString()},
+                    .images = ImageSet {
+                        Image::fromUrl(
+                            Url{jsonImagesObj["18"].toString()}, 1.0, baseImgSize),
+                        Image::fromUrl(
+                            Url{jsonImagesObj["36"].toString()}, 0.5, baseImgSize * 2),
+                        Image::fromUrl(
+                            Url{jsonImagesObj["72"].toString()}, 0.25, baseImgSize * 4)
+                    },
+                    .tooltip = Tooltip{jsonBadgeObj["description"].toString()},
+                    .homePage = Url{}
+                };
+
+                auto jsonEnvObj = jsonBadgeObj["environment"].toObject();
+
+                auto saEnv = StreamAllyEnv {
+                    .id = jsonEnvObj["id"].toString(),
+                    .slug = jsonEnvObj["slug"].toString()
+                };
+
+                auto saBadge = StreamAllyBadge {
+                    .id = jsonBadgeObj["id"].toString(),
+                    .emote = std::make_shared<const Emote>(emote),
+                    .env = std::move(saEnv)
+                };
+
+                streamAllyBadges[saBadge.id] = std::move(saBadge);
+            }
+
+            QString test;
 
             /*
 
@@ -149,13 +204,22 @@ StreamAllyAPI::StreamAllyAPI()
     StartFetchTimer();
 }
 
-std::optional<StreamAllyBadge*> StreamAllyAPI::getBadge(const UserId &id)
+std::vector<StreamAllyBadge*> StreamAllyAPI::getBadges(const MessagePlatform platform, const UserId &id)
 {
-    //if (!usersWithBadge.contains(id)) return std::nullopt;
+    std::vector<StreamAllyBadge*> badges;
 
-    //return &badges.at(usersWithBadge[id]);
+    if (platform == MessagePlatform::Kick)
+    {
+        auto &saUser = streamAllyUsers[kickUsers[id]];
 
-    return nullptr;
+        for (const auto &badge : saUser.ownedBadges)
+        {
+            auto saBadge = &streamAllyBadges[badge];
+            badges.push_back(saBadge);
+        }
+    }
+
+    return badges;
 }
 
 }  // namespace chatterino

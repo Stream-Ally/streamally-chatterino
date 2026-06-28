@@ -6,6 +6,7 @@
 #define CHATTERINO_STREAMALLYBADGE_H
 
 #include "messages/Emote.hpp"
+#include "StreamAllyEnv.h"
 
 #include <QString>
 
@@ -16,35 +17,11 @@ namespace chatterino {
 
 struct StreamAllyBadge
 {
+    QString id;
     EmotePtr emote;
-
-    bool operator==(const StreamAllyBadge &other) const
-    {
-        if (this->emote == other.emote)
-        {
-            return true;
-        }
-        if (!this->emote || !other.emote)
-        {
-            return false;
-        }
-        return this->emote->id == other.emote->id;
-    }
+    StreamAllyEnv env;
 };
 
 }  // namespace chatterino
-
-template <>
-struct std::hash<chatterino::StreamAllyBadge>
-{
-    std::size_t operator()(const chatterino::StreamAllyBadge &badge) const noexcept
-    {
-        if (!badge.emote)
-        {
-            return 0;
-        }
-        return std::hash<QString>{}(badge.emote->id.string);
-    }
-};
 
 #endif  //CHATTERINO_STREAMALLYBADGE_H

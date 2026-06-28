@@ -20,7 +20,7 @@ struct StreamAllyUser
 {
     QString streamAllyId;
     std::unordered_map<QString, StreamAllyIdentity> identities;
-    std::unordered_set<StreamAllyBadge> ownedBadges;
+    std::unordered_set<QString> ownedBadges;
 };
 
 } // namespace chatterino

@@ -8,6 +8,7 @@
 #include "StreamAllyBadge.h"
 #include "StreamAllyUser.h"
 #include "util/FunctionEventFilter.hpp"
+#include "messages/Message.hpp"
 
 #include <memory>
 #include <optional>
@@ -24,6 +25,8 @@ class StreamAllyAPI : public QObject
     Q_OBJECT
 
     QTimer *_fetchTimer = nullptr;
+
+    std::unordered_map<QString, StreamAllyBadge> streamAllyBadges;
 
     std::unordered_map<StreamAllyUserId, StreamAllyUser> streamAllyUsers;
 
@@ -43,7 +46,7 @@ public:
     /**
      * Returns the Chatterino badge for the given user
      */
-    std::optional<StreamAllyBadge*> getBadge(const UserId &id);
+    std::vector<StreamAllyBadge*> getBadges(const MessagePlatform platform, const UserId &id);
 };
 
 }

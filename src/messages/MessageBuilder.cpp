@@ -2768,12 +2768,25 @@ void MessageBuilder::appendStreamallyBadges(const QString &userID)
                                 MessageElementFlag::AlwaysShow);
 
  */
-    auto saBadge = getApp()->getStreamAllyAPI()->getBadge({userID});
+    auto imageSet = Image::fromUrl(Url(
+        "https://cdn.betterttv.net/emote/54fa8fce01e468494b85b53c/1x.webp"));
 
-    if (saBadge.has_value())
-    {
-        this->emplace<BadgeElement>(saBadge.value()->emote,
+    auto emote = Emote{
+        .name = EmoteName{"Streamally"},
+        .images = imageSet,
+        .tooltip = Tooltip{"Jan Bojler"},
+        .homePage = Url{"https://www.twitch.tv/haiset"},
+        .id = EmoteId{"noId"},
+    };
+
+    this->emplace<BadgeElement>(std::make_shared<const Emote>(std::move(emote)),
                                 MessageElementFlag::AlwaysShow);
+
+    auto saBadges = getApp()->getStreamAllyAPI()->getBadges(this->message_->platform, {userID});
+
+    for (const auto badge : saBadges)
+    {
+        this->emplace<BadgeElement>(badge->emote, MessageElementFlag::AlwaysShow);
     }
 }
 
