@@ -26,12 +26,13 @@ class StreamAllyAPI : public QObject
 
     QTimer *_fetchTimer = nullptr;
 
-    std::unordered_map<QString, StreamAllyBadge> streamAllyBadges;
+    std::unordered_map<QString, StreamAllyBadge> _streamAllyBadges;
 
-    std::unordered_map<StreamAllyUserId, StreamAllyUser> streamAllyUsers;
+    std::unordered_map<StreamAllyUserId, StreamAllyUser> _streamAllyUsers;
 
     // References stream ally user ID
-    std::unordered_map<UserId, StreamAllyUserId> kickUsers;
+    std::unordered_map<UserId, StreamAllyUserId> _kickUsers;
+    std::unordered_map<UserId, StreamAllyUserId> _twitchUsers;
 
     void FetchStreamAllyBadges();
 

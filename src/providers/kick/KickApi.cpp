@@ -98,6 +98,9 @@ void getJsonNoAuth(
         .onSuccess([cb = std::move(cb)](const NetworkResult &res) {
             const auto &ba = res.getData();
             boost::system::error_code ec;
+
+            auto test = std::string_view(ba.data(), ba.size());
+
             auto jv =
                 boost::json::parse(std::string_view(ba.data(), ba.size()), ec);
             if (ec)

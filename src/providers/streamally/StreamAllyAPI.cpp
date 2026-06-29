@@ -28,8 +28,8 @@ void StreamAllyAPI::FetchStreamAllyBadges()
         .concurrent()
         .onSuccess([this] (NetworkResult result) {
             // Clear current data
-            streamAllyUsers.clear();
-            kickUsers.clear();
+            _streamAllyUsers.clear();
+            _kickUsers.clear();
 
             // Root
             auto jsonRoot = result.parseJson();
@@ -58,7 +58,11 @@ void StreamAllyAPI::FetchStreamAllyBadges()
 
                     if (identity.platform == "kick")
                     {
-                        kickUsers[{identity.providerUserId}] = {subjectId};
+                        _kickUsers[{identity.providerUserId}] = {subjectId};
+                    }
+                    else if (identity.platform == "twitch")
+                    {
+                        _twitchUsers[{identity.providerUserId}] = {subjectId};
                     }
 
                     identities[jsonIdentityObj["platform"].toString()] = std::move(identity);
@@ -69,7 +73,7 @@ void StreamAllyAPI::FetchStreamAllyBadges()
                     .identities = std::move(identities),
                 };
 
-                streamAllyUsers[{saUser.streamAllyId}] = std::move(saUser);
+                _streamAllyUsers[{saUser.streamAllyId}] = std::move(saUser);
             }
 
             auto jsonGrants = jsonRoot["grants"].toArray();
@@ -78,7 +82,7 @@ void StreamAllyAPI::FetchStreamAllyBadges()
             {
                 auto jsonGrantObj = jsonGrant.toObject();
 
-                streamAllyUsers[{jsonGrantObj["subjectId"].toString()}].ownedBadges.emplace(jsonGrantObj["badgeDefinitionId"].toString());
+                _streamAllyUsers[{jsonGrantObj["subjectId"].toString()}].ownedBadges.emplace(jsonGrantObj["badgeDefinitionId"].toString());
             }
 
             auto jsonBadges = jsonRoot["badgeDefinitions"].toArray();
@@ -116,7 +120,7 @@ void StreamAllyAPI::FetchStreamAllyBadges()
                     .env = std::move(saEnv)
                 };
 
-                streamAllyBadges[saBadge.id] = std::move(saBadge);
+                _streamAllyBadges[saBadge.id] = std::move(saBadge);
             }
 
             QString test;
@@ -208,15 +212,14 @@ std::vector<StreamAllyBadge*> StreamAllyAPI::getBadges(const MessagePlatform pla
 {
     std::vector<StreamAllyBadge*> badges;
 
-    if (platform == MessagePlatform::Kick)
-    {
-        auto &saUser = streamAllyUsers[kickUsers[id]];
+    StreamAllyUser *saUser;
 
-        for (const auto &badge : saUser.ownedBadges)
-        {
-            auto saBadge = &streamAllyBadges[badge];
-            badges.push_back(saBadge);
-        }
+    saUser = &_streamAllyUsers[platform == MessagePlatform::Kick ? _kickUsers[id] : _twitchUsers[id]];
+
+    for (const auto &badge : saUser->ownedBadges)
+    {
+        auto saBadge = &_streamAllyBadges[badge];
+        badges.push_back(saBadge);
     }
 
     return badges;

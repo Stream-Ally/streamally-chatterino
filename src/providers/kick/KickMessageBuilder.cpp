@@ -19,6 +19,7 @@
 #include "providers/seventv/SeventvBadges.hpp"
 #include "providers/seventv/SeventvEmotes.hpp"
 #include "providers/seventv/SeventvPersonalEmotes.hpp"
+#include "providers/streamally/StreamAllyAPI.h"
 #include "providers/twitch/TwitchAccount.hpp"
 #include "providers/twitch/TwitchBadge.hpp"
 #include "singletons/Resources.hpp"
@@ -27,6 +28,8 @@
 #include "util/FormatTime.hpp"
 #include "util/Helpers.hpp"
 #include "util/Variant.hpp"
+
+#include <boost/json/serialize.hpp>
 
 namespace {
 
@@ -352,6 +355,11 @@ void appendKickBadges(KickMessageBuilder &builder, BoostJsonArray badges)
             continue;
         }
 
+        if (ty == "subscriber")
+        {
+            // Append subscriber badges
+        }
+
         if (ty == "moderator")
         {
             hasMod = true;
@@ -379,6 +387,16 @@ void appendSeventvBadge(KickMessageBuilder &builder)
     if (badge)
     {
         builder.emplace<BadgeElement>(*badge, MessageElementFlag::BadgeSevenTV);
+    }
+}
+
+void appendStreamAllyBadges(KickMessageBuilder &builder)
+{
+    auto saBadges = getApp()->getStreamAllyAPI()->getBadges(MessagePlatform::Kick, {QString::number(builder.senderID)});
+
+    for (const auto badge : saBadges)
+    {
+        builder.emplace<BadgeElement>(badge->emote, MessageElementFlag::AlwaysShow);
     }
 }
 
@@ -489,6 +507,7 @@ std::pair<MessagePtrMut, HighlightAlert> KickMessageBuilder::makeChatMessage(
     builder.emplace<TwitchModerationElement>();
 
     appendKickBadges(builder, identity["badges"].toArray());
+    appendStreamAllyBadges(builder);
     appendSeventvBadge(builder);
 
     builder.appendUsername(identity);
