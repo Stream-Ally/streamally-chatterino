@@ -355,11 +355,6 @@ void appendKickBadges(KickMessageBuilder &builder, BoostJsonArray badges)
             continue;
         }
 
-        if (ty == "subscriber")
-        {
-            // Append subscriber badges
-        }
-
         if (ty == "moderator")
         {
             hasMod = true;
@@ -367,6 +362,30 @@ void appendKickBadges(KickMessageBuilder &builder, BoostJsonArray badges)
         else if (ty == "vip")
         {
             hasVip = true;
+        }
+
+        if (ty == "subscriber")
+        {
+            auto months = badgeObj["count"].toInt64();
+            // Append subscriber badges
+            auto subBadge = getApp()->getStreamAllyAPI()->getKickChannelSubBadge(builder.channel()->slug(), months);
+
+            if (subBadge != nullptr)
+            {
+                auto name = QString("Subscriber (%1 months)").arg(months);
+
+                auto subEmote = Emote{
+                    .name = EmoteName{name},
+                    .images = subBadge->emote->images,
+                    .tooltip = Tooltip{name},
+                    .homePage = Url{},
+                };
+
+                builder.emplace<BadgeElement>(std::make_shared<const Emote>(std::move(subEmote)), flag);
+
+                // Skip handled subscriber badge
+                continue;
+            }
         }
 
         builder.emplace<BadgeElement>(emote, flag);

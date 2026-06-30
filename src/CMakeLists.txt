@@ -936,7 +936,8 @@ if (APPLE)
     set(MACOS_BUNDLE_ICON_FILE "${CMAKE_SOURCE_DIR}/resources/chatterino.icns"
             providers/streamally/StreamAllyUser.h
             providers/streamally/StreamAllyIdentity.h
-            providers/streamally/StreamAllyAPIConfidential.h)
+            providers/streamally/StreamAllyAPIConfidential.h
+            providers/streamally/KickSubBadge.h)
     list(APPEND SOURCE_FILES "${MACOS_BUNDLE_ICON_FILE}")
     set_source_files_properties(${MACOS_BUNDLE_ICON_FILE} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
 
