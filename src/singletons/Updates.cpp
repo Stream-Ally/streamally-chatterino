@@ -432,8 +432,8 @@ void Updates::checkForUpdates()
     constexpr auto maxApiVersion =
         3;  // don't try v4 yet (we don't know the API scheme yet)
     auto fmtUrl = [apiVersion]() -> QString {
-        return u"https://7tv.io/v" % QString::number(*apiVersion) %
-               "/chatterino/version/" % CHATTERINO_OS % "/" % currentBranch();
+        return u"https://streamally-production-f5e33d0e6f8f.herokuapp.com/api/public/extension/chatterino/"
+        % CHATTERINO_OS;
     };
 
     // https://streamally-production-f5e33d0e6f8f.herokuapp.com/api/public/extension/chatterino/windows

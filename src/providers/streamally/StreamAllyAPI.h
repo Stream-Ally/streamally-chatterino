@@ -26,7 +26,7 @@ class StreamAllyAPI : public QObject
 
     QTimer *_fetchTimer = nullptr;
 
-    std::unordered_map<QString, StreamAllyBadge> _streamAllyBadges;
+    std::unordered_map<QString, StreamAllyBadge> _badges;
 
     std::unordered_map<StreamAllyUserId, StreamAllyUser> _streamAllyUsers;
 
@@ -47,7 +47,7 @@ public:
     /**
      * Returns the Chatterino badge for the given user
      */
-    std::vector<StreamAllyBadge*> getBadges(const MessagePlatform platform, const UserId &id);
+    std::vector<StreamAllyBadge*> getBadges(MessagePlatform platform, const UserId &id, const QString &environment);
 };
 
 }

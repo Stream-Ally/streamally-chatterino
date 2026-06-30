@@ -24,7 +24,7 @@ namespace  chatterino {
 void StreamAllyAPI::FetchStreamAllyBadges()
 {
     // 18, 36, 54, 72
-    NetworkRequest(STREAMALLY_API_URL)
+    NetworkRequest(STREAMALLY_API_BADGE_URL)
         .concurrent()
         .onSuccess([this] (NetworkResult result) {
             // Clear current data
@@ -120,7 +120,7 @@ void StreamAllyAPI::FetchStreamAllyBadges()
                     .env = std::move(saEnv)
                 };
 
-                _streamAllyBadges[saBadge.id] = std::move(saBadge);
+                _badges[saBadge.id] = std::move(saBadge);
             }
 
             QString test;
@@ -208,7 +208,7 @@ StreamAllyAPI::StreamAllyAPI()
     StartFetchTimer();
 }
 
-std::vector<StreamAllyBadge*> StreamAllyAPI::getBadges(const MessagePlatform platform, const UserId &id)
+std::vector<StreamAllyBadge*> StreamAllyAPI::getBadges(const MessagePlatform platform, const UserId &id, const QString &environment)
 {
     std::vector<StreamAllyBadge*> badges;
 
@@ -218,8 +218,12 @@ std::vector<StreamAllyBadge*> StreamAllyAPI::getBadges(const MessagePlatform pla
 
     for (const auto &badge : saUser->ownedBadges)
     {
-        auto saBadge = &_streamAllyBadges[badge];
-        badges.push_back(saBadge);
+        auto saBadge = &_badges[badge];
+
+        if (saBadge->env.slug == environment || saBadge->env.slug == "streamally")
+        {
+            badges.push_back(saBadge);
+        }
     }
 
     return badges;
