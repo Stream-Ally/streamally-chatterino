@@ -138,12 +138,12 @@ void StreamAllyAPI::FetchStreamAllyBadges()
         .execute();
 }
 
-void StreamAllyAPI::FetchEnvironmentBadgeGrants(const QString environment)
+void StreamAllyAPI::TryFetchEnvironmentBadgeGrants(const QString environment)
 {
     if (_environments.contains(environment))
         return;
 
-    NetworkRequest(STREAMALLY_API_BADGE_URL)
+    NetworkRequest(STREAMALLY_API_BADGE_ENV_URL)
         .concurrent()
         .header("x-environment", environment)
         .onSuccess([this](NetworkResult result) {
@@ -161,7 +161,7 @@ void StreamAllyAPI::FetchEnvironmentBadgeGrants(const QString environment)
 
             AddSubjectsAndGrants(jsonResultObj);
 
-            auto jsonEnvObj = jsonRoot["environment"].toObject();
+            auto jsonEnvObj = jsonResultObj["environment"].toObject();
 
             auto env = StreamAllyEnv{
                 .id = jsonEnvObj["id"].toString(),
@@ -254,16 +254,15 @@ StreamAllyAPI::StreamAllyAPI()
     StartFetchTimer();
 }
 
-std::vector<StreamAllyBadge *> StreamAllyAPI::getBadges(
-    const MessagePlatform platform, const UserId &id,
-    const QString &environment)
+std::vector<StreamAllyBadge *> StreamAllyAPI::getBadges(const MessagePlatform platform, const UserId &id, const QString &environment)
 {
-    std::vector<StreamAllyBadge *> badges;
+    // Try to fetch environment if not done already
+    TryFetchEnvironmentBadgeGrants(environment);
 
+    std::vector<StreamAllyBadge *> badges;
     StreamAllyUser *saUser;
 
-    saUser =
-        &_streamAllyUsers[platform == MessagePlatform::Kick ? _kickUsers[id]
+    saUser = &_streamAllyUsers[platform == MessagePlatform::Kick ? _kickUsers[id]
                                                             : _twitchUsers[id]];
 
     for (const auto &badge : saUser->ownedBadges)
@@ -279,8 +278,7 @@ std::vector<StreamAllyBadge *> StreamAllyAPI::getBadges(
     return badges;
 }
 
-const KickSubBadge *StreamAllyAPI::getKickChannelSubBadgeNoFetch(
-    const QString &channel, const int month)
+const KickSubBadge *StreamAllyAPI::getKickChannelSubBadgeNoFetch(const QString &channel, const int month)
 {
     auto badges = &_kickStreamerSubBadges[channel];
 

@@ -48,7 +48,7 @@ class StreamAllyAPI : public QObject
 
     void FetchStreamAllyBadges();
 
-    void FetchEnvironmentBadgeGrants(const QString environment);
+    void TryFetchEnvironmentBadgeGrants(const QString environment);
 
     void AddSubjectsAndGrants(const QJsonObject &jsonRoot);
 
