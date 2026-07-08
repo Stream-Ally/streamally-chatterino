@@ -19,14 +19,14 @@
 
 #include <vector>
 
-namespace  chatterino {
+namespace chatterino {
 
 void StreamAllyAPI::FetchStreamAllyBadges()
 {
     // 18, 36, 54, 72
     NetworkRequest(STREAMALLY_API_BADGE_URL)
         .concurrent()
-        .onSuccess([this] (NetworkResult result) {
+        .onSuccess([this](NetworkResult result) {
             // Clear current data
             _streamAllyUsers.clear();
             _kickUsers.clear();
@@ -34,56 +34,8 @@ void StreamAllyAPI::FetchStreamAllyBadges()
             // Root
             auto jsonRoot = result.parseJson();
 
-            // Load subjects (users)
-            auto jsonSubjects = jsonRoot.value("subjects").toArray();
-
-            for (const auto &jsonSubject : jsonSubjects)
-            {
-                auto jsonSubjectObj = jsonSubject.toObject();
-                auto jsonIdentities = jsonSubjectObj["identities"].toArray();
-                auto subjectId = jsonSubjectObj["id"].toString();
-
-                std::unordered_map<QString, StreamAllyIdentity> identities;
-
-                for (const auto &jsonIdentity : jsonIdentities)
-                {
-                    auto jsonIdentityObj = jsonIdentity.toObject();
-
-                    auto identity = StreamAllyIdentity {
-                        .platform = jsonIdentityObj["platform"].toString(),
-                        .login = jsonIdentityObj["login"].toString(),
-                        .displayName = jsonIdentityObj["displayName"].toString(),
-                        .providerUserId = {jsonIdentityObj["providerUserId"].toString()},
-                    };
-
-                    if (identity.platform == "kick")
-                    {
-                        _kickUsers[{identity.providerUserId}] = {subjectId};
-                    }
-                    else if (identity.platform == "twitch")
-                    {
-                        _twitchUsers[{identity.providerUserId}] = {subjectId};
-                    }
-
-                    identities[jsonIdentityObj["platform"].toString()] = std::move(identity);
-                }
-
-                auto saUser = StreamAllyUser {
-                    .streamAllyId = subjectId,
-                    .identities = std::move(identities),
-                };
-
-                _streamAllyUsers[{saUser.streamAllyId}] = std::move(saUser);
-            }
-
-            auto jsonGrants = jsonRoot["grants"].toArray();
-
-            for (const auto &jsonGrant : jsonGrants)
-            {
-                auto jsonGrantObj = jsonGrant.toObject();
-
-                _streamAllyUsers[{jsonGrantObj["subjectId"].toString()}].ownedBadges.emplace(jsonGrantObj["badgeDefinitionId"].toString());
-            }
+            // Add subjects and grants
+            AddSubjectsAndGrants(jsonRoot);
 
             auto jsonBadges = jsonRoot["badgeDefinitions"].toArray();
             constexpr QSize baseImgSize(18, 18);
@@ -95,30 +47,27 @@ void StreamAllyAPI::FetchStreamAllyBadges()
 
                 auto emote = Emote{
                     .name = EmoteName{jsonBadgeObj["name"].toString()},
-                    .images = ImageSet {
-                        Image::fromUrl(
-                            Url{jsonImagesObj["18"].toString()}, 1.0, baseImgSize),
-                        Image::fromUrl(
-                            Url{jsonImagesObj["36"].toString()}, 0.5, baseImgSize * 2),
-                        Image::fromUrl(
-                            Url{jsonImagesObj["72"].toString()}, 0.25, baseImgSize * 4)
-                    },
+                    .images =
+                        ImageSet{
+                            Image::fromUrl(Url{jsonImagesObj["18"].toString()},
+                                           1.0, baseImgSize),
+                            Image::fromUrl(Url{jsonImagesObj["36"].toString()},
+                                           0.5, baseImgSize * 2),
+                            Image::fromUrl(Url{jsonImagesObj["72"].toString()},
+                                           0.25, baseImgSize * 4)},
                     .tooltip = Tooltip{jsonBadgeObj["description"].toString()},
-                    .homePage = Url{}
-                };
+                    .homePage = Url{}};
 
                 auto jsonEnvObj = jsonBadgeObj["environment"].toObject();
 
-                auto saEnv = StreamAllyEnv {
-                    .id = jsonEnvObj["id"].toString(),
-                    .slug = jsonEnvObj["slug"].toString()
-                };
+                auto saEnv =
+                    StreamAllyEnv{.id = jsonEnvObj["id"].toString(),
+                                  .slug = jsonEnvObj["slug"].toString()};
 
-                auto saBadge = StreamAllyBadge {
+                auto saBadge = StreamAllyBadge{
                     .id = jsonBadgeObj["id"].toString(),
                     .emote = std::make_shared<const Emote>(emote),
-                    .envSlug = jsonEnvObj["slug"].toString()
-                };
+                    .envSlug = jsonEnvObj["slug"].toString()};
 
                 _badges[saBadge.id] = std::move(saBadge);
             }
@@ -186,16 +135,18 @@ void StreamAllyAPI::FetchStreamAllyBadges()
             }
             */
         })
-    .execute();
+        .execute();
 }
 
 void StreamAllyAPI::FetchEnvironmentBadgeGrants(const QString environment)
 {
-    if (_environments.contains(environment)) return;
+    if (_environments.contains(environment))
+        return;
 
     NetworkRequest(STREAMALLY_API_BADGE_URL)
         .concurrent()
-        .onSuccess([this] (NetworkResult result) {
+        .header("x-environment", environment)
+        .onSuccess([this](NetworkResult result) {
             // Root
             auto jsonRoot = result.parseJson();
 
@@ -203,11 +154,84 @@ void StreamAllyAPI::FetchEnvironmentBadgeGrants(const QString environment)
             if (jsonRoot.contains("error"))
             {
                 // Error occured
+                return;
             }
 
+            auto jsonResultObj = jsonRoot["result"].toObject();
 
+            AddSubjectsAndGrants(jsonResultObj);
+
+            auto jsonEnvObj = jsonRoot["environment"].toObject();
+
+            auto env = StreamAllyEnv{
+                .id = jsonEnvObj["id"].toString(),
+                .slug = jsonEnvObj["slug"].toString(),
+            };
+
+            _environments[env.slug] = std::move(env);
         })
-    .execute();
+        .execute();
+}
+
+void StreamAllyAPI::AddSubjectsAndGrants(const QJsonObject &jsonRoot)
+{
+    auto jsonSubjects = jsonRoot.value("subjects").toArray();
+
+    for (const auto &jsonSubject : jsonSubjects)
+    {
+        auto jsonSubjectObj = jsonSubject.toObject();
+        auto jsonIdentities = jsonSubjectObj["identities"].toArray();
+        auto subjectId = jsonSubjectObj["id"].toString();
+
+        // Skip already added users
+        if (_streamAllyUsers.contains({subjectId}))
+        {
+            continue;
+        }
+
+        std::unordered_map<QString, StreamAllyIdentity> identities;
+
+        for (const auto &jsonIdentity : jsonIdentities)
+        {
+            auto jsonIdentityObj = jsonIdentity.toObject();
+
+            auto identity = StreamAllyIdentity{
+                .platform = jsonIdentityObj["platform"].toString(),
+                .login = jsonIdentityObj["login"].toString(),
+                .displayName = jsonIdentityObj["displayName"].toString(),
+                .providerUserId =
+                    {jsonIdentityObj["providerUserId"].toString()},
+            };
+
+            if (identity.platform == "kick")
+            {
+                _kickUsers[{identity.providerUserId}] = {subjectId};
+            }
+            else if (identity.platform == "twitch")
+            {
+                _twitchUsers[{identity.providerUserId}] = {subjectId};
+            }
+
+            identities[jsonIdentityObj["platform"].toString()] =
+                std::move(identity);
+        }
+
+        auto saUser = StreamAllyUser{
+            .streamAllyId = subjectId,
+            .identities = std::move(identities),
+        };
+
+        _streamAllyUsers[{saUser.streamAllyId}] = std::move(saUser);
+    }
+
+    auto jsonGrants = jsonRoot["grants"].toArray();
+
+    for (const auto &jsonGrant : jsonGrants)
+    {
+        auto jsonGrantObj = jsonGrant.toObject();
+        _streamAllyUsers[{jsonGrantObj["subjectId"].toString()}]
+            .ownedBadges.emplace(jsonGrantObj["badgeDefinitionId"].toString());
+    }
 }
 
 void StreamAllyAPI::StartFetchTimer()
@@ -216,10 +240,11 @@ void StreamAllyAPI::StartFetchTimer()
     _fetchTimer = new QTimer(this);
 
     // 4. Connect the timeout signal to your slot
-    connect(_fetchTimer, &QTimer::timeout, this, &StreamAllyAPI::FetchStreamAllyBadges);
+    connect(_fetchTimer, &QTimer::timeout, this,
+            &StreamAllyAPI::FetchStreamAllyBadges);
 
     // 5. Start the timer (e.g., every 1000ms = 1 second)
-    _fetchTimer->start(1000 * 60 * 15); // 1000 * 60 (minute) * 15 (15 minutes)
+    _fetchTimer->start(1000 * 60 * 15);  // 1000 * 60 (minute) * 15 (15 minutes)
 }
 
 StreamAllyAPI::StreamAllyAPI()
@@ -229,13 +254,17 @@ StreamAllyAPI::StreamAllyAPI()
     StartFetchTimer();
 }
 
-std::vector<StreamAllyBadge*> StreamAllyAPI::getBadges(const MessagePlatform platform, const UserId &id, const QString &environment)
+std::vector<StreamAllyBadge *> StreamAllyAPI::getBadges(
+    const MessagePlatform platform, const UserId &id,
+    const QString &environment)
 {
-    std::vector<StreamAllyBadge*> badges;
+    std::vector<StreamAllyBadge *> badges;
 
     StreamAllyUser *saUser;
 
-    saUser = &_streamAllyUsers[platform == MessagePlatform::Kick ? _kickUsers[id] : _twitchUsers[id]];
+    saUser =
+        &_streamAllyUsers[platform == MessagePlatform::Kick ? _kickUsers[id]
+                                                            : _twitchUsers[id]];
 
     for (const auto &badge : saUser->ownedBadges)
     {
@@ -250,23 +279,27 @@ std::vector<StreamAllyBadge*> StreamAllyAPI::getBadges(const MessagePlatform pla
     return badges;
 }
 
-const KickSubBadge* StreamAllyAPI::getKickChannelSubBadgeNoFetch(const QString &channel, const int month)
+const KickSubBadge *StreamAllyAPI::getKickChannelSubBadgeNoFetch(
+    const QString &channel, const int month)
 {
     auto badges = &_kickStreamerSubBadges[channel];
 
     KickSubBadge *lastBadge = nullptr;
     for (auto &badge : *badges)
     {
-        if (month >= badge.monthTreshold && (!lastBadge || badge.monthTreshold > lastBadge->monthTreshold))
+        if (month >= badge.monthTreshold &&
+            (!lastBadge || badge.monthTreshold > lastBadge->monthTreshold))
         {
             lastBadge = &badge;
         }
-        else break;
+        else
+            break;
     }
 
     return lastBadge;
 }
-const KickSubBadge* StreamAllyAPI::getKickChannelSubBadge(const QString &channel, const int month)
+const KickSubBadge *StreamAllyAPI::getKickChannelSubBadge(
+    const QString &channel, const int month)
 {
     if (_kickStreamerSubBadges.contains(channel))
     {

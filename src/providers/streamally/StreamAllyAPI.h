@@ -50,6 +50,8 @@ class StreamAllyAPI : public QObject
 
     void FetchEnvironmentBadgeGrants(const QString environment);
 
+    void AddSubjectsAndGrants(const QJsonObject &jsonRoot);
+
     void StartFetchTimer();
 
     const KickSubBadge* getKickChannelSubBadgeNoFetch(const QString &channel, const int month);
