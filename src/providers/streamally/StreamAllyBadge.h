@@ -19,7 +19,7 @@ struct StreamAllyBadge
 {
     QString id;
     EmotePtr emote;
-    StreamAllyEnv env;
+    QString envSlug;
 };
 
 }  // namespace chatterino

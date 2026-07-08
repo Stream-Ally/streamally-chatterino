@@ -117,7 +117,7 @@ void StreamAllyAPI::FetchStreamAllyBadges()
                 auto saBadge = StreamAllyBadge {
                     .id = jsonBadgeObj["id"].toString(),
                     .emote = std::make_shared<const Emote>(emote),
-                    .env = std::move(saEnv)
+                    .envSlug = jsonEnvObj["slug"].toString()
                 };
 
                 _badges[saBadge.id] = std::move(saBadge);
@@ -189,6 +189,27 @@ void StreamAllyAPI::FetchStreamAllyBadges()
     .execute();
 }
 
+void StreamAllyAPI::FetchEnvironmentBadgeGrants(const QString environment)
+{
+    if (_environments.contains(environment)) return;
+
+    NetworkRequest(STREAMALLY_API_BADGE_URL)
+        .concurrent()
+        .onSuccess([this] (NetworkResult result) {
+            // Root
+            auto jsonRoot = result.parseJson();
+
+            // Check for errors
+            if (jsonRoot.contains("error"))
+            {
+                // Error occured
+            }
+
+
+        })
+    .execute();
+}
+
 void StreamAllyAPI::StartFetchTimer()
 {
     // 3. Initialize the timer
@@ -220,7 +241,7 @@ std::vector<StreamAllyBadge*> StreamAllyAPI::getBadges(const MessagePlatform pla
     {
         auto saBadge = &_badges[badge];
 
-        if (saBadge->env.slug == environment || saBadge->env.slug == "streamally")
+        if (saBadge->envSlug == environment || saBadge->envSlug == "streamally")
         {
             badges.push_back(saBadge);
         }

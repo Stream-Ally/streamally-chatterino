@@ -38,12 +38,17 @@ class StreamAllyAPI : public QObject
     std::unordered_map<UserId, StreamAllyUserId> _kickUsers;
     std::unordered_map<UserId, StreamAllyUserId> _twitchUsers;
 
+    // Environment slug -> StreamAllyEnvironment
+    std::unordered_map<QString, StreamAllyEnv> _environments;
+
     // --- Kick specific ---
 
     // Channel slug -> Sub badges
     std::unordered_map<QString, std::vector<KickSubBadge>> _kickStreamerSubBadges;
 
     void FetchStreamAllyBadges();
+
+    void FetchEnvironmentBadgeGrants(const QString environment);
 
     void StartFetchTimer();
 
