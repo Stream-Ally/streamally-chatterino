@@ -34,8 +34,12 @@
         <binary>chatterino</binary>
     </provides>
     <releases>
+        <release version="1.0.7" date="2025-07-10">
+            <url>https://github.com/Stream-Ally/streamally-chatterino/releases/tag/v1.0.7</url>
+        </release>
         <release version="1.0.6" date="2025-12-4">
             <url>https://github.com/Stream-Ally/streamally-chatterino/releases/tag/v1.0.6</url>
+        </release>
         <release version="7.5.5" date="2026-03-22">
             <url>https://github.com/SevenTV/chatterino7/releases/tag/v7.5.5</url>
         </release>
