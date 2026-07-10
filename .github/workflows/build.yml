@@ -30,6 +30,9 @@ env:
   CHATTERINO_REQUIRE_CLEAN_GIT: On
   CHATTERINO_BUILD_TYPE: ${{ case(inputs.buildType != '', inputs.buildType, 'auto') }}
   CONAN_VERSION: 2.28.1
+  STREAMALLY_API_BADGE_URL: ${{ secrets.STREAMALLY_API_BADGE_URL }}
+  STREAMALLY_API_BADGE_ENV_URL: ${{ secrets.STREAMALLY_API_BADGE_ENV_URL }}
+  STREAMALLY_API_ENV_URL_ARG: ${{ secrets.STREAMALLY_API_ENV_URL_ARG }}
 
 jobs:
   build-ubuntu-docker:

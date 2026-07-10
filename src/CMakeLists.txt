@@ -925,19 +925,14 @@ set(SOURCE_FILES
         providers/streamally/StreamAllyAPI.cpp
         providers/streamally/StreamAllyAPI.h
         providers/streamally/StreamAllyBadge.h
+        providers/streamally/StreamAllyIdentity.h
+        providers/streamally/StreamAllyEnv.h
         providers/streamally/StreamAllyUser.h
-        providers/streamally/StreamAllyIdentity.h
-        providers/streamally/StreamAllyIdentity.h
-        providers/streamally/StreamAllyEnv.h
-        providers/streamally/StreamAllyEnv.h
+        providers/streamally/KickSubBadge.h
 )
 
 if (APPLE)
-    set(MACOS_BUNDLE_ICON_FILE "${CMAKE_SOURCE_DIR}/resources/chatterino.icns"
-            providers/streamally/StreamAllyUser.h
-            providers/streamally/StreamAllyIdentity.h
-            providers/streamally/StreamAllyAPIConfidential.h
-            providers/streamally/KickSubBadge.h)
+    set(MACOS_BUNDLE_ICON_FILE "${CMAKE_SOURCE_DIR}/resources/chatterino.icns")
     list(APPEND SOURCE_FILES "${MACOS_BUNDLE_ICON_FILE}")
     set_source_files_properties(${MACOS_BUNDLE_ICON_FILE} PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
 
@@ -1485,3 +1480,31 @@ if (DOXYGEN_FOUND)
         ${CMAKE_CURRENT_LIST_DIR}
     )
 endif ()
+
+# Try real environment variable first
+if(DEFINED ENV{STREAMALLY_API_BADGE_URL})
+    set(API_URL $ENV{STREAMALLY_API_BADGE_URL})
+else()
+    # Parse local .env file for local builds
+    set(ENV_FILE "${CMAKE_SOURCE_DIR}/.env")
+    if(EXISTS ${ENV_FILE})
+        file(STRINGS ${ENV_FILE} ENV_LINES)
+        foreach(LINE ${ENV_LINES})
+            if(LINE MATCHES "^STREAMALLY_API_BADGE_URL=(.*)$")
+                set(STREAMALLY_API_BADGE_URL "${CMAKE_MATCH_1}")
+            endif()
+            if(LINE MATCHES "^STREAMALLY_API_BADGE_ENV_URL=(.*)$")
+                set(STREAMALLY_API_BADGE_ENV_URL "${CMAKE_MATCH_1}")
+            endif()
+            if(LINE MATCHES "^STREAMALLY_API_ENV_URL_ARG=(.*)$")
+                set(STREAMALLY_API_ENV_URL_ARG "${CMAKE_MATCH_1}")
+            endif()
+        endforeach()
+    endif()
+endif()
+
+message(STATUS "Using API_URL=${STREAMALLY_API_ENV_URL_ARG}")
+
+add_compile_definitions(STREAMALLY_API_BADGE_URL="${STREAMALLY_API_BADGE_URL}")
+add_compile_definitions(STREAMALLY_API_BADGE_ENV_URL="${STREAMALLY_API_BADGE_ENV_URL}")
+add_compile_definitions(STREAMALLY_API_ENV_URL_ARG="${STREAMALLY_API_ENV_URL_ARG}")

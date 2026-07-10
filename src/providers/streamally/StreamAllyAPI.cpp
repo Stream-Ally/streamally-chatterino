@@ -10,7 +10,6 @@
 #include "messages/Emote.hpp"
 #include "messages/Image.hpp"
 #include "singletons/WindowManager.hpp"
-#include "StreamAllyAPIConfidential.h"
 #include "StreamAllyBadge.h"
 #include "StreamAllyEnv.h"
 #include "widgets/Window.hpp"
