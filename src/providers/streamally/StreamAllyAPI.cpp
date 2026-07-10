@@ -141,34 +141,65 @@ void StreamAllyAPI::FetchStreamAllyBadges()
 void StreamAllyAPI::TryFetchEnvironmentBadgeGrants(const QString environment)
 {
     if (_environments.contains(environment))
+    {
         return;
+    }
 
-    NetworkRequest(STREAMALLY_API_BADGE_ENV_URL)
-        .concurrent()
-        .header("x-environment", environment)
-        .onSuccess([this](NetworkResult result) {
+    auto url = QString(STREAMALLY_API_ENV_URL_ARG).arg(environment);
+    NetworkRequest(url)
+        .onSuccess([this, environment](NetworkResult result) {
+            auto isGloblEnv = false;
+            StreamAllyEnv globalEnv = {};
+
             // Root
             auto jsonRoot = result.parseJson();
 
-            // Check for errors
-            if (jsonRoot.contains("error"))
+            auto slug = jsonRoot["slug"].toString();
+            if (slug == "streamally")
             {
-                // Error occured
+                isGloblEnv = true;
+                globalEnv.id = jsonRoot["id"].toString();
+            }
+
+            // If the requested environment does not exist, set it global settings
+            if (isGloblEnv)
+            {
+                globalEnv.slug = environment;
+                _environments[environment] = std::move(globalEnv);
+
                 return;
             }
 
-            auto jsonResultObj = jsonRoot["result"].toObject();
+            NetworkRequest(STREAMALLY_API_BADGE_ENV_URL)
+                .header("x-environment", environment)
+                .onSuccess([this, environment](NetworkResult result) {
+                    // Root
+                    auto jsonRoot = result.parseJson();
 
-            AddSubjectsAndGrants(jsonResultObj);
+                    // Check for errors + kinda dirty, but check if the env already exists
+                    if (jsonRoot.contains("error") || _environments.contains(environment))
+                    {
+                        // Error occured
+                        return;
+                    }
 
-            auto jsonEnvObj = jsonResultObj["environment"].toObject();
+                    auto jsonResultObj = jsonRoot["result"].toObject();
 
-            auto env = StreamAllyEnv{
-                .id = jsonEnvObj["id"].toString(),
-                .slug = jsonEnvObj["slug"].toString(),
-            };
+                    AddSubjectsAndGrants(jsonResultObj);
 
-            _environments[env.slug] = std::move(env);
+                    auto jsonEnvObj = jsonResultObj["environment"].toObject();
+
+                    auto env = StreamAllyEnv{
+                        .id = jsonEnvObj["id"].toString(),
+                        .slug = jsonEnvObj["slug"].toString(),
+                    };
+
+                    _environments[env.slug] = std::move(env);
+                })
+                .execute();
+        })
+        .onError([this](NetworkResult result) {
+
         })
         .execute();
 }
@@ -256,11 +287,11 @@ StreamAllyAPI::StreamAllyAPI()
 
 std::vector<StreamAllyBadge *> StreamAllyAPI::getBadges(const MessagePlatform platform, const UserId &id, const QString &environment)
 {
-    // Try to fetch environment if not done already
-    TryFetchEnvironmentBadgeGrants(environment);
-
     std::vector<StreamAllyBadge *> badges;
     StreamAllyUser *saUser;
+
+    // Try to fetch environment if not done already
+    TryFetchEnvironmentBadgeGrants(environment);
 
     saUser = &_streamAllyUsers[platform == MessagePlatform::Kick ? _kickUsers[id]
                                                             : _twitchUsers[id]];

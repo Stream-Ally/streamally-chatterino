@@ -411,7 +411,7 @@ void appendSeventvBadge(KickMessageBuilder &builder)
 
 void appendStreamAllyBadges(KickMessageBuilder &builder)
 {
-    auto saBadges = getApp()->getStreamAllyAPI()->getBadges(MessagePlatform::Kick, {QString::number(builder.senderID)}, builder->messageText);
+    auto saBadges = getApp()->getStreamAllyAPI()->getBadges(MessagePlatform::Kick, {QString::number(builder.senderID)}, builder.channel()->getName());
 
     for (const auto badge : saBadges)
     {

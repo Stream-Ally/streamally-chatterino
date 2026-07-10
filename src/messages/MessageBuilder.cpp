@@ -2769,7 +2769,7 @@ void MessageBuilder::appendStreamallyBadges(const QString &userID)
 
  */
 
-    auto saBadges = getApp()->getStreamAllyAPI()->getBadges(this->message_->platform, {userID}, "streamally");
+    auto saBadges = getApp()->getStreamAllyAPI()->getBadges(this->message_->platform, {userID}, "twitch");
 
     for (const auto badge : saBadges)
     {
