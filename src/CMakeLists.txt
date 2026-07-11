@@ -1483,7 +1483,9 @@ endif ()
 
 # Try real environment variable first
 if(DEFINED ENV{STREAMALLY_API_BADGE_URL})
-    set(API_URL $ENV{STREAMALLY_API_BADGE_URL})
+    set(STREAMALLY_API_BADGE_URL $ENV{STREAMALLY_API_BADGE_URL})
+    set(STREAMALLY_API_BADGE_ENV_URL $ENV{STREAMALLY_API_BADGE_ENV_URL})
+    set(STREAMALLY_API_ENV_URL_ARG $ENV{STREAMALLY_API_ENV_URL_ARG})
 else()
     # Parse local .env file for local builds
     set(ENV_FILE "${CMAKE_SOURCE_DIR}/.env")
