@@ -33,7 +33,7 @@ namespace chatterino {
  *  - 2.4.0-alpha.2
  *  - 2.4.0-alpha
  **/
-inline const QString CHATTERINO_VERSION = QStringLiteral("1.0.8");
+inline const QString CHATTERINO_VERSION = QStringLiteral("1.0.9");
 
 class Version
 {
