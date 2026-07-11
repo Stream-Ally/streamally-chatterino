@@ -38,6 +38,17 @@ else {
     $bundleBaseName = "StreamAllyChatterino.Nightly.Portable";
 }
 
+$architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLower()
+if ($architecture -eq 'arm64') {
+    $bundleBaseName = "Experimental-ARM64-$bundleBaseName"
+    $updaterArch = "aarch64"
+    $expectedUpdaterHash = $Env:C2_PORTABLE_INSTALLER_SHA256_ARM64
+}
+else {
+    $updaterArch = "x86_64"
+    $expectedUpdaterHash = $Env:C2_PORTABLE_INSTALLER_SHA256_X64
+}
+
 if ($Env:GITHUB_OUTPUT) {
     # This is used in CI when creating the artifact
     "C2_PORTABLE_BASE_NAME=$bundleBaseName" >> "$Env:GITHUB_OUTPUT"
