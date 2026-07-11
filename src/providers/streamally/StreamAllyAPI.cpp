@@ -144,7 +144,7 @@ void StreamAllyAPI::TryFetchEnvironmentBadgeGrants(const QString environment)
         return;
     }
 
-    auto url = QString(STREAMALLY_API_ENV_URL_ARG).arg(environment);
+    auto url = QString(STREAMALLY_API_ENV_URL).append(environment);
     NetworkRequest(url)
         .onSuccess([this, environment](NetworkResult result) {
             auto isGloblEnv = false;
