@@ -24,6 +24,12 @@ else {
     $installerBaseName = "StreamAllyChatterino.Nightly.Installer";
 }
 
+$architecture = [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLower()
+if ($architecture -eq 'arm64') {
+    $installerBaseName = "Experimental-ARM64-$installerBaseName"
+    $defines = "$defines /DIS_ARM=1".Trim()
+}
+
 if ($Env:GITHUB_OUTPUT) {
     # This is used in CI when creating the artifact
     "C2_INSTALLER_BASE_NAME=$installerBaseName" >> "$Env:GITHUB_OUTPUT"
