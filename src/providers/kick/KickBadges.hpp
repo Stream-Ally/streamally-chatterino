@@ -12,6 +12,7 @@ class KickBadges
 public:
     static std::pair<EmotePtr, MessageElementFlag> lookup(
         std::string_view name);
+    static ImageSet getSubGifterBadgeByGiftCount(int count);
 };
 
 }  // namespace chatterino

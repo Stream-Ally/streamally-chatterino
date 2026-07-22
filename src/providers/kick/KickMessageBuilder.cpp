@@ -363,8 +363,7 @@ void appendKickBadges(KickMessageBuilder &builder, BoostJsonArray badges)
         {
             hasVip = true;
         }
-
-        if (ty == "subscriber")
+        else if (ty == "subscriber")
         {
             auto months = badgeObj["count"].toInt64();
             // Append subscriber badges
@@ -386,6 +385,27 @@ void appendKickBadges(KickMessageBuilder &builder, BoostJsonArray badges)
                 // Skip handled subscriber badge
                 continue;
             }
+        }
+        else if (ty == "sub_gifter")
+        {
+            constexpr QSize baseImgSize(36, 36);
+
+            auto count = badgeObj["count"].toInt64();
+
+            auto subGiftImageSet = KickBadges::getSubGifterBadgeByGiftCount(count);
+            auto name = QString("Sub gifter (%1 gifted subs)").arg(count);
+
+            auto subGiftEmote = Emote{
+                .name = EmoteName{name},
+                .images = subGiftImageSet,
+                .tooltip = Tooltip{name},
+                .homePage = Url{},
+            };
+
+            builder.emplace<BadgeElement>(std::make_shared<const Emote>(std::move(subGiftEmote)), flag);
+
+            // Skip handled sub gifter badge
+            continue;
         }
 
         builder.emplace<BadgeElement>(emote, flag);

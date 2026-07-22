@@ -29,6 +29,7 @@ struct BadgeNameData {
     QStringView pathSegment;
     MessageElementFlag flag{};
 };
+
 BadgeNameData nameDataFor(BadgeID id)
 {
     switch (id)
@@ -159,4 +160,49 @@ std::pair<EmotePtr, MessageElementFlag> KickBadges::lookup(
     return entry;
 }
 
+ImageSet KickBadges::getSubGifterBadgeByGiftCount(int count)
+{
+    static const std::array<std::pair<int, QString>, 28> tiers = {{
+        {5000, QStringLiteral(":/kick/badges/gifter-5000.svg")},
+        {4000, QStringLiteral(":/kick/badges/gifter-4000.svg")},
+        {3000, QStringLiteral(":/kick/badges/gifter-3000.svg")},
+        {2000, QStringLiteral(":/kick/badges/gifter-2000.svg")},
+        {1000, QStringLiteral(":/kick/badges/gifter-1000.svg")},
+        {950,  QStringLiteral(":/kick/badges/gifter-0950.svg")},
+        {900,  QStringLiteral(":/kick/badges/gifter-0900.svg")},
+        {850,  QStringLiteral(":/kick/badges/gifter-0850.svg")},
+        {800,  QStringLiteral(":/kick/badges/gifter-0800.svg")},
+        {750,  QStringLiteral(":/kick/badges/gifter-0750.svg")},
+        {700,  QStringLiteral(":/kick/badges/gifter-0700.svg")},
+        {650,  QStringLiteral(":/kick/badges/gifter-0650.svg")},
+        {600,  QStringLiteral(":/kick/badges/gifter-0600.svg")},
+        {550,  QStringLiteral(":/kick/badges/gifter-0550.svg")},
+        {500,  QStringLiteral(":/kick/badges/gifter-0500.svg")},
+        {450,  QStringLiteral(":/kick/badges/gifter-0450.svg")},
+        {400,  QStringLiteral(":/kick/badges/gifter-0400.svg")},
+        {350,  QStringLiteral(":/kick/badges/gifter-0350.svg")},
+        {300,  QStringLiteral(":/kick/badges/gifter-0300.svg")},
+        {250,  QStringLiteral(":/kick/badges/gifter-0250.svg")},
+        {200,  QStringLiteral(":/kick/badges/gifter-0200.svg")},
+        {150,  QStringLiteral(":/kick/badges/gifter-0150.svg")},
+        {100,  QStringLiteral(":/kick/badges/gifter-0100.svg")},
+        {50,   QStringLiteral(":/kick/badges/gifter-0050.svg")},
+        {25,   QStringLiteral(":/kick/badges/gifter-0025.svg")},
+        {10,   QStringLiteral(":/kick/badges/gifter-0010.svg")},
+        {5,    QStringLiteral(":/kick/badges/gifter-0005.svg")},
+        {1,    QStringLiteral(":/kick/badges/gifter-0001.svg")},
+    }};
+
+    QString file = QStringLiteral(":/kick/badges/gifter-0001.svg");  // fallback
+    for (const auto &[min, path] : tiers)
+    {
+        if (count >= min)
+        {
+            file = path;
+            break;
+        }
+    }
+
+    return ImageSet{Image::fromUrl({file}, 0.6, {36, 36})};
+}
 }  // namespace chatterino
