@@ -250,16 +250,16 @@ jobs:
         with:
           arch: ${{env.C2_ARCH == 'arm' && 'arm64' || 'x64' }}
 
-      #- name: Setup sccache (Windows)
+      - name: Setup sccache (Windows)
         # sccache v0.7.4
-        #uses: hendrikmuhs/ccache-action@v1.2.23
-        #if: startsWith(matrix.os, 'windows')
-        #with:
-          #variant: sccache
+        uses: hendrikmuhs/ccache-action@v1.2.23
+        if: startsWith(matrix.os, 'windows')
+        with:
+          variant: sccache
           # only save on on the default (master) branch
-          #save: ${{ github.event_name == 'push' }}
-          #key: sccache-build-${{ matrix.os }}-${{ runner.arch }}-${{ matrix.qt-version }}-${{ matrix.skip-crashpad }}
-          #restore-keys: |
+          save: ${{ github.event_name == 'push' }}
+          key: sccache-build-${{ matrix.os }}-${{ runner.arch }}-${{ matrix.qt-version }}-${{ matrix.skip-crashpad }}
+          restore-keys: |
             #sccache-build-${{ matrix.os }}-${{ runner.arch }}-${{ matrix.qt-version }}
 
       - name: Cache conan packages (Windows)
