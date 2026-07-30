@@ -315,7 +315,7 @@ jobs:
               -DFORCE_JSON_GENERATION=Off `
               -DCHATTERINO_SPELLCHECK=On `
               ..
-          ninja -j2
+          ninja
 
       - name: Build crashpad (Windows)
         if: startsWith(matrix.os, 'windows') && !matrix.skip-crashpad
