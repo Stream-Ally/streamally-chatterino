@@ -181,7 +181,7 @@ jobs:
       matrix:
         include:
           # Windows
-          - os: windows-latest
+          - os: windows-2022
             qt-version: 6.9.3
             force-lto: false
             skip-artifact: false
