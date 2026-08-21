@@ -26,6 +26,7 @@
 
 #include <QApplication>
 #include <QCommandLineParser>
+#include <QDesktopServices>
 #include <QMessageBox>
 #include <QSslSocket>
 #include <QStringList>
@@ -140,7 +141,27 @@ int main(int argc, char **argv)
         qCInfo(chatterinoApp) << "Chatterino Qt SSL active backend protocols:"
                               << QSslSocket::supportedProtocols();
 
+        bool isFirstRun = !QFile::exists(paths->settingsDirectory + "/settings.json");
+
         Settings settings(args, paths->settingsDirectory);
+
+        if (isFirstRun)
+        {
+            auto *box = new QMessageBox(QMessageBox::Information, "StreamAlly Chatterino",
+                                    "Start with recommended settings?",
+                                    QMessageBox::Yes | QMessageBox::No);
+            box->setInformativeText("Test test test test bla bla bla bla");
+            box->setAttribute(Qt::WA_DeleteOnClose);
+            if (box->exec() == QMessageBox::Yes)
+            {
+                QDesktopServices::openUrl(
+                    QUrl("https://www.bexcool.com/"));
+
+                getSettings()->imageUploaderUrl = QString("TestBro");
+
+                getSettings()->requestSave();
+            }
+        }
 
         Updates updates(*paths, settings);
 
