@@ -419,7 +419,8 @@ void SplitHeader::initializeLayout()
         }),
         stretch(),
     });
-    centerBox_->setSpacing(scale() * 3);
+
+    this->titleLabel_->setOverrideScale(scale() * 1.15F);
 
     auto *layout = makeLayout<QHBoxLayout>({
         // space
@@ -1219,7 +1220,7 @@ void SplitHeader::paintEvent(QPaintEvent * /*event*/)
     if (channel->isTwitchOrKickChannel())
     {
         border = channel->isKickChannel() ? kickBorder : twitchBorder;
-        border.setAlpha(120);
+        //border.setAlpha(120);
     }
 
     if (this->split_->hasFocus())
@@ -1228,7 +1229,7 @@ void SplitHeader::paintEvent(QPaintEvent * /*event*/)
 
         if (channel->isTwitchOrKickChannel())
         {
-            border.setAlpha(255);
+            //border.setAlpha(255);
         }
         else
         {
@@ -1241,7 +1242,7 @@ void SplitHeader::paintEvent(QPaintEvent * /*event*/)
 
     if (channel->isTwitchOrKickChannel())
     {
-        painter.fillRect(0, 0, addButton_->isVisible() ? this->width() - addButton_->width() : this->width(), 1, border);
+        painter.fillRect(0, 0, addButton_->isVisible() ? this->width() - addButton_->width() : this->width(), 2, border);
     }
     else
     {
@@ -1358,10 +1359,12 @@ void SplitHeader::themeChangedEvent()
     {
         palette.setColor(QPalette::WindowText,
                          this->theme->splits.header.focusedText);
+        this->platformLogoButton_->setColor(this->theme->splits.header.focusedText);
     }
     else
     {
         palette.setColor(QPalette::WindowText, this->theme->splits.header.text);
+        this->platformLogoButton_->setColor(Qt::white);
     }
     this->titleLabel_->setPalette(palette);
 
