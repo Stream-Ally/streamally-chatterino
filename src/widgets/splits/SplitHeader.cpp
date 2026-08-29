@@ -1142,8 +1142,14 @@ void SplitHeader::paintEvent(QPaintEvent * /*event*/)
 {
     QPainter painter(this);
 
+    auto channel = this->split_->getSelectedChannel();
+
     QColor background = this->theme->splits.header.background;
     QColor border = this->theme->splits.header.border;
+
+    // StreamAlly Addidtion
+    QColor twitchOverlay = QColor(137, 86, 251, 30);
+    QColor kickOverlay = QColor(0, 231, 1, 30);
 
     if (this->split_->hasFocus())
     {
@@ -1152,6 +1158,7 @@ void SplitHeader::paintEvent(QPaintEvent * /*event*/)
     }
 
     painter.fillRect(this->rect(), background);
+    painter.fillRect(this->rect(), channel->isKickChannel() ? kickOverlay : twitchOverlay);
     painter.setPen(border);
     painter.drawRect(0, 0, this->width() - 1, this->height() - 2);
     painter.fillRect(0, this->height() - 1, this->width(), 1, background);

@@ -55,6 +55,8 @@ public:
 
     struct TabColors {
         QColor text;
+        QColor textTwitch;
+        QColor textKick;
         struct {
             QColor regular;
             QColor hover;

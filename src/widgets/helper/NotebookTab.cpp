@@ -980,6 +980,7 @@ void NotebookTab::paintEvent(QPaintEvent *)
 
     // set the pen color
     painter.setPen(colors.text);
+    //painter.setPen(QColor(151, 106, 251));
 
     float compactDivider = getCompactDivider(getSettings()->tabStyle);
     // set area for text
