@@ -1158,7 +1158,8 @@ void SplitHeader::paintEvent(QPaintEvent * /*event*/)
     }
 
     painter.fillRect(this->rect(), background);
-    painter.fillRect(this->rect(), channel->isKickChannel() ? kickOverlay : twitchOverlay);
+    // Check if the platform is Kick or Twitch, then draw rect depending on platform
+    if (channel->isTwitchOrKickChannel()) painter.fillRect(this->rect(), channel->isKickChannel() ? kickOverlay : twitchOverlay);
     painter.setPen(border);
     painter.drawRect(0, 0, this->width() - 1, this->height() - 2);
     painter.fillRect(0, this->height() - 1, this->width(), 1, background);
