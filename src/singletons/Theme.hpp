@@ -55,8 +55,6 @@ public:
 
     struct TabColors {
         QColor text;
-        QColor textTwitch;
-        QColor textKick;
         struct {
             QColor regular;
             QColor hover;
@@ -140,6 +138,9 @@ public:
         QColor dropTargetRectBorder;
         QColor resizeHandle;
         QColor resizeHandleBackground;
+
+        QColor lineTwitch;
+        QColor lineKick;
 
         struct {
             QColor border;

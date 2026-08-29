@@ -924,7 +924,10 @@ void NotebookTab::paintEvent(QPaintEvent *)
     auto lineThickness = ceil((this->selected_ ? 2.f : 1.f) * scale);
     auto lineColor = this->mouseOver_ ? colors.line.hover
                                       : (windowFocused ? colors.line.regular
-                                                       : colors.line.unfocused);
+                                      : colors.line.unfocused);
+
+    // Check if the platform is Kick or Twitch, then draw rect depending on platform
+    //if (channel->isTwitchOrKickChannel()) painter.fillRect(this->rect(), channel->isKickChannel() ? kickOverlay : twitchOverlay);
 
     QRect lineRect;
     switch (this->tabLocation_)
@@ -980,7 +983,6 @@ void NotebookTab::paintEvent(QPaintEvent *)
 
     // set the pen color
     painter.setPen(colors.text);
-    //painter.setPen(QColor(151, 106, 251));
 
     float compactDivider = getCompactDivider(getSettings()->tabStyle);
     // set area for text

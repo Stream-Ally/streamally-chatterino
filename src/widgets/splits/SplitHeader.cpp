@@ -36,6 +36,7 @@
 #include "widgets/splits/SplitContainer.hpp"
 #include "widgets/TooltipWidget.hpp"
 
+#include <QDesktopServices>
 #include <QDrag>
 #include <QHBoxLayout>
 #include <QInputDialog>
@@ -340,6 +341,28 @@ void SplitHeader::initializeLayout()
 {
     assert(this->layout() == nullptr);
 
+    auto channel = this->split_->getChannel();
+
+    const auto *finalLogo = channel->isTwitchChannel() ? ":/twitch/twitch.svg" : ":/kick/kick.svg";
+
+    this->platformLogoButton_ = new SvgButton(
+        {
+            .dark =   finalLogo,
+            .light = finalLogo,
+        },
+        this, {5, 5});
+    this->platformLogoButton_->setColor(Qt::lightGray);
+
+    /// XXX: this never gets disconnected
+    QObject::connect(this->platformLogoButton_, &Button::leftMousePress, this,
+                     [this] {
+                         auto channel = this->split_->getChannel();
+
+                         QDesktopServices::openUrl(QUrl(QString("https://%1/%2")
+                             .arg(channel->isTwitchChannel() ? "twitch.tv" : "kick.com")
+                             .arg(channel->getName())));
+                     });
+
     this->moderationButton_ = new SvgButton(
         {
             .dark = ":/buttons/moderationDisabled-darkMode.svg",
@@ -380,6 +403,24 @@ void SplitHeader::initializeLayout()
                          this->dropdownButton_->setMenu(this->createMainMenu());
                      });
 
+    auto stretch = [] {
+        return new QSpacerItem(0, 0, QSizePolicy::Expanding, QSizePolicy::Minimum);
+    };
+
+    this->centerBox_ = makeLayout<QHBoxLayout>({
+        stretch(),
+        // logo
+        this->platformLogoButton_,
+        // name
+        this->titleLabel_ = makeWidget<Label>([](auto w) {
+            w->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+            w->setCentered(false);
+            w->setPadding(QMargins{});
+        }),
+        stretch(),
+    });
+    centerBox_->setSpacing(scale() * 3);
+
     auto *layout = makeLayout<QHBoxLayout>({
         // space
         makeWidget<BaseWidget>([](auto w) {
@@ -387,13 +428,8 @@ void SplitHeader::initializeLayout()
         }),
         // StreamAlly image
         //this->streamAllyImage_,
-        // title
-        this->titleLabel_ = makeWidget<Label>([](auto w) {
-            w->setSizePolicy(QSizePolicy::MinimumExpanding,
-                             QSizePolicy::Preferred);
-            w->setCentered(true);
-            w->setPadding(QMargins{});
-        }),
+        // Center box containing logo and title
+        centerBox_,
         // space
         makeWidget<BaseWidget>([](auto w) {
             w->setScaleIndependentSize(8, 4);
@@ -943,6 +979,34 @@ void SplitHeader::handleChannelChanged()
                                                      this->updateChannelText();
                                                  });
     }
+
+    updatePlatformLogo();
+}
+
+void SplitHeader::updatePlatformLogo() const
+{
+    auto channel = this->split_->getSelectedChannel();
+
+    if (channel->isTwitchChannel())
+    {
+        this->platformLogoButton_->setSource({
+            .dark = ":/twitch/twitch.svg",
+            .light = ":/twitch/twitch.svg",
+        });
+        this->platformLogoButton_->show();
+    }
+    else if (channel->isKickChannel())
+    {
+        this->platformLogoButton_->setSource({
+            .dark = ":/kick/kick.svg",
+            .light = ":/kick/kick.svg",
+        });
+        this->platformLogoButton_->show();
+    }
+    else
+    {
+        this->platformLogoButton_->hide();
+    }
 }
 
 void SplitHeader::scaleChangedEvent(float scale)
@@ -952,6 +1016,7 @@ void SplitHeader::scaleChangedEvent(float scale)
 
     this->setFixedHeight(w);
     this->dropdownButton_->setFixedWidth(w);
+    this->platformLogoButton_->setFixedWidth(w * 0.8);
     //this->streamAllyImage_->setFixedWidth(w);
     this->moderationButton_->setFixedWidth(w);
     this->chattersButton_->setFixedWidth(w);
@@ -1140,28 +1205,49 @@ void SplitHeader::updateIcons()
 
 void SplitHeader::paintEvent(QPaintEvent * /*event*/)
 {
-    QPainter painter(this);
-
     auto channel = this->split_->getSelectedChannel();
+
+    QPainter painter(this);
 
     QColor background = this->theme->splits.header.background;
     QColor border = this->theme->splits.header.border;
 
     // StreamAlly Addidtion
-    QColor twitchOverlay = QColor(137, 86, 251, 30);
-    QColor kickOverlay = QColor(0, 231, 1, 30);
+    QColor twitchBorder = this->theme->splits.lineTwitch;
+    QColor kickBorder = this->theme->splits.lineKick;
+
+    if (channel->isTwitchOrKickChannel())
+    {
+        border = channel->isKickChannel() ? kickBorder : twitchBorder;
+        border.setAlpha(120);
+    }
 
     if (this->split_->hasFocus())
     {
         background = this->theme->splits.header.focusedBackground;
-        border = this->theme->splits.header.focusedBorder;
+
+        if (channel->isTwitchOrKickChannel())
+        {
+            border.setAlpha(255);
+        }
+        else
+        {
+            border = this->theme->splits.header.focusedBorder;
+        }
     }
 
     painter.fillRect(this->rect(), background);
-    // Check if the platform is Kick or Twitch, then draw rect depending on platform
-    if (channel->isTwitchOrKickChannel()) painter.fillRect(this->rect(), channel->isKickChannel() ? kickOverlay : twitchOverlay);
     painter.setPen(border);
-    painter.drawRect(0, 0, this->width() - 1, this->height() - 2);
+
+    if (channel->isTwitchOrKickChannel())
+    {
+        painter.fillRect(0, 0, addButton_->isVisible() ? this->width() - addButton_->width() : this->width(), 1, border);
+    }
+    else
+    {
+        painter.drawRect(0, 0, this->width() - 1, this->height() - 2);
+    }
+
     painter.fillRect(0, this->height() - 1, this->width(), 1, background);
 }
 

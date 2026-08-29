@@ -147,10 +147,10 @@ int main(int argc, char **argv)
 
         if (isFirstRun)
         {
-            auto *box = new QMessageBox(QMessageBox::Information, "StreamAlly Chatterino",
+            auto *box = new QMessageBox(QMessageBox::Information, "Welcome to StreamAlly's Chatterino!",
                                     "Start with recommended settings?",
                                     QMessageBox::Yes | QMessageBox::No);
-            box->setInformativeText("Test test test test bla bla bla bla");
+            box->setInformativeText("This will apply recommended settings for image uploader, mod buttons etc.");
             box->setAttribute(Qt::WA_DeleteOnClose);
             if (box->exec() == QMessageBox::Yes)
             {

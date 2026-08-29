@@ -192,6 +192,8 @@ void parseSplits(const QJsonObject &splits, const QJsonObject &splitsFallback,
     parseColor(theme, splits, dropTargetRectBorder);
     parseColor(theme, splits, resizeHandle);
     parseColor(theme, splits, resizeHandleBackground);
+    parseColor(theme, splits, lineTwitch);
+    parseColor(theme, splits, lineKick);
 
     {
         const auto header = splits["header"_L1].toObject();

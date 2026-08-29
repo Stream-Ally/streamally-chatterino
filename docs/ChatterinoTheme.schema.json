@@ -326,6 +326,8 @@
             "dropPreviewBorder": { "$ref": "#/definitions/qt-color" },
             "dropTargetRect": { "$ref": "#/definitions/qt-color" },
             "dropTargetRectBorder": { "$ref": "#/definitions/qt-color" },
+            "lineKick": { "$ref": "#/definitions/qt-color" },
+            "lineTwitch": { "$ref": "#/definitions/qt-color" },
             "header": {
               "type": "object",
               "additionalProperties": false,

@@ -49,6 +49,8 @@
       "dropPreviewBorder": "#0094ff",
       "dropTargetRect": "#00ffffff",
       "dropTargetRectBorder": "#000094ff",
+      "lineKick": "#00E701",
+      "lineTwitch": "#8956FB",
       "header": {
         "background": "#ffffff",
         "border": "#ffffff",

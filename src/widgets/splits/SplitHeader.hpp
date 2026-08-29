@@ -65,6 +65,8 @@ private:
 
     void handleChannelChanged();
 
+    void updatePlatformLogo() const;
+
     Split *const split_{};
     QString tooltipText_{};
     TooltipWidget *const tooltipWidget_{};
@@ -75,9 +77,11 @@ private:
     std::chrono::steady_clock::time_point lastReloadedSubEmotes_;
 
     // ui
+    QHBoxLayout *centerBox_{};
     DrawnButton *dropdownButton_{};
     QLabel *streamAllyImage_{};
     Label *titleLabel_{};
+    SvgButton *platformLogoButton_{};
 
     LabelButton *modeButton_{};
     QAction *modeActionSetEmote{};
