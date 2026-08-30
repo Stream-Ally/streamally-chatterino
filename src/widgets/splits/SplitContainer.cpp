@@ -989,10 +989,12 @@ void SplitContainer::refreshTabTitle()
 
     QString newTitle = "";
     bool first = true;
+    std::vector<Chat> chats;
 
     for (const auto &chatWidget : this->splits_)
     {
-        auto channelName = chatWidget->getChannel()->getLocalizedName();
+        auto channel = chatWidget->getChannel();
+        auto channelName = channel->getLocalizedName();
         if (channelName.isEmpty())
         {
             continue;
@@ -1004,6 +1006,10 @@ void SplitContainer::refreshTabTitle()
         }
         newTitle += channelName;
 
+        if (channel->isTwitchOrKickChannel())
+        {
+            chats.push_back({ channelName, channel->isKickChannel() ? Platform::Kick : Platform::Twitch });
+        }
         first = false;
     }
 
@@ -1013,6 +1019,7 @@ void SplitContainer::refreshTabTitle()
     }
 
     this->tab_->setDefaultTitle(newTitle);
+    this->tab_->updateTitle(chats);
 }
 
 void SplitContainer::refreshTabLiveStatus()

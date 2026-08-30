@@ -20,6 +20,7 @@ class NotificationModel;
 
 enum class Platform : uint8_t {
     Twitch,  // 0
+    Kick
 };
 
 class NotificationController final

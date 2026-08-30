@@ -415,6 +415,11 @@ int NotebookTab::normalTabWidth() const
     return this->normalTabWidthForHeight(this->height());
 }
 
+void NotebookTab::updateTitle(const std::vector<Chat> &chats)
+{
+    chatsInTab = chats;
+}
+
 int NotebookTab::normalTabWidthForHeight(int height) const
 {
     float scale = this->scale();
@@ -925,6 +930,15 @@ void NotebookTab::paintEvent(QPaintEvent *)
     auto lineColor = this->mouseOver_ ? colors.line.hover
                                       : (windowFocused ? colors.line.regular
                                       : colors.line.unfocused);
+
+    if (!chatsInTab.empty())
+    {
+        if (chatsInTab.size() == 1)
+        {
+            if (chatsInTab.at(0).platform == Platform::Kick) lineColor = this->theme->splits.lineKick;
+            else if (chatsInTab.at(0).platform == Platform::Twitch) lineColor = this->theme->splits.lineTwitch;
+        }
+    }
 
     // Check if the platform is Kick or Twitch, then draw rect depending on platform
     //if (channel->isTwitchOrKickChannel()) painter.fillRect(this->rect(), channel->isKickChannel() ? kickOverlay : twitchOverlay);

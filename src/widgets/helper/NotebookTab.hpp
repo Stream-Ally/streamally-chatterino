@@ -5,6 +5,9 @@
 #pragma once
 
 #include "common/Common.hpp"
+#include "controllers/filters/lang/Types.hpp"
+#include "controllers/notifications/NotificationController.hpp"
+#include "util/Chat.h"
 #include "widgets/buttons/Button.hpp"
 #include "widgets/helper/ChannelView.hpp"
 #include "widgets/Notebook.hpp"
@@ -91,6 +94,8 @@ public:
     void growWidth(int width);
     int normalTabWidth() const;
 
+    void updateTitle(const std::vector<Chat> &chats);
+
 protected:
     void themeChangedEvent() override;
 
@@ -144,6 +149,8 @@ private:
 
     QString customTitle_;
     QString defaultTitle_;
+
+    std::vector<Chat> chatsInTab;
 
     bool selected_{};
     bool mouseOver_{};
