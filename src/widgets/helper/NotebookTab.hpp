@@ -16,6 +16,7 @@
 #include <pajlada/signals/signalholder.hpp>
 #include <QMenu>
 #include <QPropertyAnimation>
+#include <QSvgRenderer>
 
 namespace chatterino {
 
@@ -149,6 +150,11 @@ private:
 
     QString customTitle_;
     QString defaultTitle_;
+
+    QSvgRenderer *twitchIcon_{};
+    QSvgRenderer *twitchIconDarker_{};
+    QSvgRenderer *kickIcon_{};
+    QSvgRenderer *kickIconDarker_{};
 
     std::vector<Chat> chatsInTab;
 

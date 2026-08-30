@@ -166,6 +166,11 @@ NotebookTab::NotebookTab(Notebook *notebook)
     this->menu_.addSeparator();
 
     this->notebook_->addNotebookActionsToMenu(&this->menu_);
+
+    this->twitchIcon_ = new QSvgRenderer(QStringLiteral(":/twitch/twitchMono.svg"), this);
+    this->twitchIconDarker_ = new QSvgRenderer(QStringLiteral(":/twitch/twitchMonoDarker.svg"), this);
+    this->kickIcon_ = new QSvgRenderer(QStringLiteral(":/kick/kickMono.svg"), this);
+    this->kickIconDarker_ = new QSvgRenderer(QStringLiteral(":/kick/kickMonoDarker.svg"), this);
 }
 
 void NotebookTab::recreateCloseMultipleTabsMenu(
@@ -429,24 +434,27 @@ int NotebookTab::normalTabWidthForHeight(int height) const
         getApp()->getFonts()->getFontMetrics(FontStyle::UiTabs, scale);
 
     float compactDivider = getCompactDivider(getSettings()->tabStyle);
+    float iconBox = 14 * scale / compactDivider + 3 * scale;
     if (this->hasXButton())
     {
         width = static_cast<int>(metrics.horizontalAdvance(this->getTitle()) +
-                                 (32 / compactDivider * scale));
+                                 (32 / compactDivider * scale) +
+                                 chatsInTab.size() * iconBox);
     }
     else
     {
         width = static_cast<int>(metrics.horizontalAdvance(this->getTitle()) +
-                                 (16 / compactDivider * scale));
+                                 (16 / compactDivider * scale) +
+                                 chatsInTab.size() * iconBox);
     }
 
-    if (static_cast<float>(height) > 150 * scale)
+    if (static_cast<float>(height) > 250 * scale)
     {
         width = height;
     }
     else
     {
-        width = std::clamp(width, height, static_cast<int>(150 * scale));
+        width = std::clamp(width, height, static_cast<int>(250 * scale));
     }
 
     return width;
@@ -1016,14 +1024,61 @@ void NotebookTab::paintEvent(QPaintEvent *)
         textRect.setRight(textRect.right() - this->height() / 2);
     }
 
-    int width = metrics.horizontalAdvance(this->getTitle());
-    Qt::Alignment alignment = width > textRect.width()
-                                  ? Qt::AlignLeft | Qt::AlignVCenter
-                                  : Qt::AlignHCenter | Qt::AlignVCenter;
+    if (this->chatsInTab.empty())
+    {
+        int width = metrics.horizontalAdvance(this->getTitle());
+        Qt::Alignment alignment = width > textRect.width()
+                                      ? Qt::AlignLeft | Qt::AlignVCenter
+                                      : Qt::AlignHCenter | Qt::AlignVCenter;
 
-    QTextOption option(alignment);
-    option.setWrapMode(QTextOption::NoWrap);
-    painter.drawText(textRect, this->getTitle(), option);
+        QTextOption option(alignment);
+        option.setWrapMode(QTextOption::NoWrap);
+        painter.drawText(textRect, this->getTitle(), option);
+    }
+    else
+    {
+        const int iconSize = int(9 * scale / compactDivider);
+        const int iconGap  = int(3 * scale);
+        const QString separator = QStringLiteral(", ");
+
+        int contentWidth = int(metrics.horizontalAdvance(this->getTitle())) +
+                       chatsInTab.size() * (iconSize + iconGap);
+
+        float x = textRect.left() + (textRect.width() - contentWidth) / 2.0;
+
+        const int iconY = textRect.top() + (textRect.height() - iconSize) / 2 + iconSize / 8;
+
+        QTextOption opt(Qt::AlignLeft | Qt::AlignVCenter);
+        opt.setWrapMode(QTextOption::NoWrap);
+
+        for (size_t i = 0; i < this->chatsInTab.size(); i++)
+        {
+            const auto &chat = this->chatsInTab[i];
+
+            // Skip the first separator
+            if (i > 0)
+            {
+                float sw = metrics.horizontalAdvance(separator);
+                painter.drawText(QRectF(x, textRect.top(), sw, textRect.height()),
+                                 separator, opt);
+                x += sw;
+            }
+
+            QSvgRenderer *icon = isSelected() ?
+                                (chat.platform == Platform::Twitch ? this->twitchIcon_ : this->kickIcon_) :
+                                (chat.platform == Platform::Twitch ? this->twitchIconDarker_ : this->kickIconDarker_);
+            if (icon != nullptr)
+            {
+                icon->render(&painter, QRectF(x, iconY, iconSize, iconSize));
+                x += iconSize + iconGap;
+            }
+
+            qreal tw = metrics.horizontalAdvance(chat.channelName);
+            painter.drawText(QRectF(x, textRect.top(), tw, textRect.height()),
+                             chat.channelName, opt);
+            x += tw;
+        }
+    }
 
     // draw close x
     if (this->shouldDrawXButton())

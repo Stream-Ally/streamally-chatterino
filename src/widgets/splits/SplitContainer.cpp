@@ -1018,8 +1018,8 @@ void SplitContainer::refreshTabTitle()
         newTitle = "empty";
     }
 
-    this->tab_->setDefaultTitle(newTitle);
     this->tab_->updateTitle(chats);
+    this->tab_->setDefaultTitle(newTitle);
 }
 
 void SplitContainer::refreshTabLiveStatus()
