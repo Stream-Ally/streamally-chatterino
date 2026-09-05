@@ -26,9 +26,18 @@ void StreamAllyAPI::FetchStreamAllyBadges()
     NetworkRequest(STREAMALLY_API_BADGE_URL)
         .concurrent()
         .onSuccess([this](NetworkResult result) {
+            std::vector<QString> knownEnvs;
+            knownEnvs.reserve(_environments.size());
+            for (const auto env : _environments)
+            {
+                knownEnvs.push_back(env.first);
+            }
+
             // Clear current data
             _streamAllyUsers.clear();
             _kickUsers.clear();
+            _twitchUsers.clear();
+            _environments.clear();
 
             // Root
             auto jsonRoot = result.parseJson();
@@ -71,7 +80,11 @@ void StreamAllyAPI::FetchStreamAllyBadges()
                 _badges[saBadge.id] = std::move(saBadge);
             }
 
-            QString test;
+            // Return environments
+            for (const auto &slug : knownEnvs)
+            {
+                TryFetchEnvironmentBadgeGrants(slug);
+            }
 
             /*
 
