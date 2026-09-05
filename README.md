@@ -3,9 +3,15 @@
 
 StreamAlly's Chatterino is a fork of Chatterino 7. This fork contains support for StreamAlly integration.
 
+<img height="500" alt="image" src="https://github.com/user-attachments/assets/97fbf7ee-edc0-4b3e-8c55-890cfcf93259" />
+
 ### StreamAlly's Chatterino features
 
 - StreamAlly badges
+- Improved Kick support - added subscription gifter badges along with correct subscriber badges
+- Colored tabs by platform
+- Platform's icon next to streamer's name
+- Recommended default settings and hotkeys
 
 ### Downloads
 
