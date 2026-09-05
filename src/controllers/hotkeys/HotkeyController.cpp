@@ -437,6 +437,25 @@ void HotkeyController::addDefaults(std::set<QString> &addedHotkeys)
                             QKeySequence("Ctrl+F6"),
                             "changeMultichannelContext", {"next"},
                             "select next multi channel context");
+
+        // StreamAlly Hotkeys Begin
+        this->tryAddDefault(addedHotkeys, HotkeyCategory::Split,
+                            QKeySequence("Alt+Down"), "focus",
+                            {"down"}, "focus down");
+        this->tryAddDefault(addedHotkeys, HotkeyCategory::Split,
+                            QKeySequence("Alt+Left"), "focus",
+                            {"left"}, "focus left");
+        this->tryAddDefault(addedHotkeys, HotkeyCategory::Split,
+                            QKeySequence("Alt+Right"), "focus",
+                            {"right"}, "focus right");
+        this->tryAddDefault(addedHotkeys, HotkeyCategory::Split,
+                            QKeySequence("Alt+Up"), "focus",
+                            {"up"}, "focus up");
+
+        this->tryAddDefault(addedHotkeys, HotkeyCategory::Split,
+                            QKeySequence("F11"), "runCommand",
+                    {"!open"}, "toggle live tabs only");
+        // End
     }
 
     // split input
@@ -542,6 +561,12 @@ void HotkeyController::addDefaults(std::set<QString> &addedHotkeys)
         this->tryAddDefault(addedHotkeys, HotkeyCategory::Window,
                             QKeySequence("Ctrl+G"), "reopenSplit",
                             std::vector<QString>(), "reopen split");
+
+        // Streamally Hotkeys Begin
+        this->tryAddDefault(addedHotkeys, HotkeyCategory::Window,
+                            QKeySequence("Ctrl+H"), "toggleLocalR9K",
+                            {}, "toggle local r9k");
+        // End
 
 #ifndef Q_OS_MACOS
         this->tryAddDefault(addedHotkeys, HotkeyCategory::Window,

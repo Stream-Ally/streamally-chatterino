@@ -150,16 +150,51 @@ int main(int argc, char **argv)
             auto *box = new QMessageBox(QMessageBox::Information, "Welcome to StreamAlly's Chatterino!",
                                     "Start with recommended settings?",
                                     QMessageBox::Yes | QMessageBox::No);
-            box->setInformativeText("This will apply recommended settings for image uploader, mod buttons etc.");
+            box->setInformativeText("This will apply recommended settings for split headers, emotes, streamer mode and more.");
             box->setAttribute(Qt::WA_DeleteOnClose);
             if (box->exec() == QMessageBox::Yes)
             {
-                QDesktopServices::openUrl(
-                    QUrl("https://www.bexcool.com/"));
+                auto *s = getSettings();
 
-                getSettings()->imageUploaderUrl = QString("TestBro");
+                // Appearance
+                s->headerViewerCount = true; // showViewerCount
+                s->headerUptime = true; // showUptime
+                s->headerGame = false; // showGame
+                s->headerStreamTitle = false; // showTitle
 
-                getSettings()->requestSave();
+                // Streamer mode
+                s->streamerModeMuteMentions = true; // muteMentions
+                s->hideModerationActions = true; // hideModActions
+                s->streamerModeHideBlockedTermText = true; // hideBlockedTermText
+                s->streamerModeSuppressLiveNotifications = true; // supressLiveNotifications
+                s->streamerModeHideViewerCountAndDuration = false; // hideViewerCountAndDuration
+
+                // Moderation
+                s->timeoutStackStyle = 1;
+
+                // Emotes
+                s->showUnlistedSevenTVEmotes = true;
+                s->enableSevenTVEventAPI = true; // eventapi
+
+                // Highlighting
+                s->highlightAlwaysPlaySound = true; // alwaysPlaySound
+
+                // Links
+                s->linkInfoTooltip = true;
+
+                // Timeouts
+                std::vector<TimeoutButton> timeoutButtons;
+                timeoutButtons.push_back(TimeoutButton("m", 1));
+                timeoutButtons.push_back(TimeoutButton("m", 5));
+                timeoutButtons.push_back(TimeoutButton("m", 10));
+                timeoutButtons.push_back(TimeoutButton("m", 30));
+                timeoutButtons.push_back(TimeoutButton("h", 1));
+                timeoutButtons.push_back(TimeoutButton("d", 1));
+                timeoutButtons.push_back(TimeoutButton("w", 1));
+                timeoutButtons.push_back(TimeoutButton("w", 2));
+                s->timeoutButtons.setValue(timeoutButtons);
+
+                s->requestSave();
             }
         }
 
