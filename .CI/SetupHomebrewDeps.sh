@@ -72,7 +72,10 @@ echo "Installing x86_64 dependencies"
 arch -x86_64 "$x86_64_homebrew_dir/bin/brew" update
 for dep in "$@"
 do
-    arch -x86_64 "$x86_64_homebrew_dir/bin/brew" install "$dep"
+    arch -x86_64 "$x86_64_homebrew_dir/bin/brew" install "$dep" || {
+        echo "brew install $dep failed, retrying postinstall..."
+        arch -x86_64 "$x86_64_homebrew_dir/bin/brew" postinstall "$dep" || true
+    }
 done
 
 echo "Relinking boost libraries"
