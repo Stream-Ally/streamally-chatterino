@@ -1217,7 +1217,7 @@ void SplitHeader::paintEvent(QPaintEvent * /*event*/)
     QColor twitchBorder = this->theme->splits.lineTwitch;
     QColor kickBorder = this->theme->splits.lineKick;
 
-    if (channel->isTwitchOrKickChannel())
+    if (getSettings()->colorizeTabsAndSplits && channel->isTwitchOrKickChannel())
     {
         border = channel->isKickChannel() ? kickBorder : twitchBorder;
         //border.setAlpha(120);
@@ -1240,7 +1240,7 @@ void SplitHeader::paintEvent(QPaintEvent * /*event*/)
     painter.fillRect(this->rect(), background);
     painter.setPen(border);
 
-    if (channel->isTwitchOrKickChannel())
+    if (getSettings()->colorizeTabsAndSplits && channel->isTwitchOrKickChannel())
     {
         painter.fillRect(0, 0, addButton_->isVisible() ? this->width() - addButton_->width() : this->width(), 2, border);
     }
