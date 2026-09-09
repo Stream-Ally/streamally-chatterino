@@ -167,10 +167,14 @@ NotebookTab::NotebookTab(Notebook *notebook)
 
     this->notebook_->addNotebookActionsToMenu(&this->menu_);
 
-    this->twitchIcon_ = new QSvgRenderer(QStringLiteral(":/twitch/twitchMono.svg"), this);
-    this->twitchIconDarker_ = new QSvgRenderer(QStringLiteral(":/twitch/twitchMonoDarker.svg"), this);
-    this->kickIcon_ = new QSvgRenderer(QStringLiteral(":/kick/kickMono.svg"), this);
-    this->kickIconDarker_ = new QSvgRenderer(QStringLiteral(":/kick/kickMonoDarker.svg"), this);
+    this->twitchIcon_ =
+        new QSvgRenderer(QStringLiteral(":/twitch/twitchMono.svg"), this);
+    this->twitchIconDarker_ =
+        new QSvgRenderer(QStringLiteral(":/twitch/twitchMonoDarker.svg"), this);
+    this->kickIcon_ =
+        new QSvgRenderer(QStringLiteral(":/kick/kickMono.svg"), this);
+    this->kickIconDarker_ =
+        new QSvgRenderer(QStringLiteral(":/kick/kickMonoDarker.svg"), this);
 }
 
 void NotebookTab::recreateCloseMultipleTabsMenu(
@@ -935,16 +939,29 @@ void NotebookTab::paintEvent(QPaintEvent *)
 
     // draw color indicator line
     auto lineThickness = ceil((this->selected_ ? 2.f : 1.f) * scale);
-    auto lineColor = this->mouseOver_ ? colors.line.hover
-                                      : (windowFocused ? colors.line.regular
-                                      : colors.line.unfocused);
 
-    if (!chatsInTab.empty())
+    QColor lineColor = this->mouseOver_ ? colors.line.hover
+                                      : (windowFocused ? colors.line.regular
+                                                       : colors.line.unfocused);
+
+    if (getSettings()->colorizeTabsAndSplits)
     {
-        if (chatsInTab.size() == 1)
+        if (this->highlightState_ == HighlightState::Highlighted)
         {
-            if (chatsInTab.at(0).platform == Platform::Kick) lineColor = this->theme->splits.lineKick;
-            else if (chatsInTab.at(0).platform == Platform::Twitch) lineColor = this->theme->splits.lineTwitch;
+            lineColor = this->theme->tabs.highlighted.line.regular;
+        }
+        else
+        {
+            if (!chatsInTab.empty())
+            {
+                if (chatsInTab.size() == 1)
+                {
+                    if (chatsInTab.at(0).platform == Platform::Kick)
+                        lineColor = this->theme->splits.lineKick;
+                    else if (chatsInTab.at(0).platform == Platform::Twitch)
+                        lineColor = this->theme->splits.lineTwitch;
+                }
+            }
         }
     }
 
@@ -1038,15 +1055,16 @@ void NotebookTab::paintEvent(QPaintEvent *)
     else
     {
         const int iconSize = int(9 * scale / compactDivider);
-        const int iconGap  = int(3 * scale);
+        const int iconGap = int(3 * scale);
         const QString separator = QStringLiteral(", ");
 
         int contentWidth = int(metrics.horizontalAdvance(this->getTitle())) +
-                       chatsInTab.size() * (iconSize + iconGap);
+                           chatsInTab.size() * (iconSize + iconGap);
 
         float x = textRect.left() + (textRect.width() - contentWidth) / 2.0;
 
-        const int iconY = textRect.top() + (textRect.height() - iconSize) / 2 + iconSize / 8;
+        const int iconY =
+            textRect.top() + (textRect.height() - iconSize) / 2 + iconSize / 8;
 
         QTextOption opt(Qt::AlignLeft | Qt::AlignVCenter);
         opt.setWrapMode(QTextOption::NoWrap);
@@ -1059,14 +1077,19 @@ void NotebookTab::paintEvent(QPaintEvent *)
             if (i > 0)
             {
                 float sw = metrics.horizontalAdvance(separator);
-                painter.drawText(QRectF(x, textRect.top(), sw, textRect.height()),
-                                 separator, opt);
+                painter.drawText(
+                    QRectF(x, textRect.top(), sw, textRect.height()), separator,
+                    opt);
                 x += sw;
             }
 
-            QSvgRenderer *icon = isSelected() ?
-                                (chat.platform == Platform::Twitch ? this->twitchIcon_ : this->kickIcon_) :
-                                (chat.platform == Platform::Twitch ? this->twitchIconDarker_ : this->kickIconDarker_);
+            QSvgRenderer *icon =
+                isSelected()
+                    ? (chat.platform == Platform::Twitch ? this->twitchIcon_
+                                                         : this->kickIcon_)
+                    : (chat.platform == Platform::Twitch
+                           ? this->twitchIconDarker_
+                           : this->kickIconDarker_);
             if (icon != nullptr)
             {
                 icon->render(&painter, QRectF(x, iconY, iconSize, iconSize));

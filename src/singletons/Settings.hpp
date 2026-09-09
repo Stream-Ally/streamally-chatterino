@@ -192,7 +192,7 @@ public:
     BoolSetting hideDeletionActions = {
         "/appearance/messages/hideDeletionActions", false};
     BoolSetting colorizeNicknames = {"/appearance/messages/colorizeNicknames",
-                                     true};
+        true};
     EnumSetting<UsernameDisplayMode> usernameDisplayMode = {
         "/appearance/messages/usernameDisplayMode",
         UsernameDisplayMode::UsernameAndLocalizedName};
@@ -256,6 +256,8 @@ public:
     BoolSetting headerUptime = {"/appearance/splitheader/showUptime", false};
     FloatSetting customThemeMultiplier = {"/appearance/customThemeMultiplier",
                                           -0.5f};
+    BoolSetting colorizeTabsAndSplits = {"/appearance/splitheader/colorizeTabs",
+                                     true};
     // BoolSetting useCustomWindowFrame = {"/appearance/useCustomWindowFrame",
     // false};
 

@@ -879,7 +879,14 @@ void GeneralPage::initLayout(GeneralPageView &layout)
             }
 
             return fuzzyToInt(args.value, 0);
-        });
+    });
+
+    layout.addNavigationSpacing();
+    layout.addTitle("StreamAlly");
+
+    SettingWidget::checkbox("Colorize tabs and splits by platform", s.colorizeTabsAndSplits)
+        ->setTooltip("Changes the line on top of tabs and splits for each platform. Twitch - purple, Kick - green")
+        ->addTo(layout);
 
     layout.addNavigationSpacing();
     layout.addTitle("Beta");
