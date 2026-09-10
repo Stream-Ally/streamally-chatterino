@@ -201,6 +201,8 @@ int main(int argc, char **argv)
                 s->timeoutButtons.setValue(timeoutButtons);
 
                 s->requestSave();
+
+                delete box;
             }
         }
 
