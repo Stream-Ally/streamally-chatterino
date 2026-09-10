@@ -12,6 +12,36 @@ namespace {
 using namespace Qt::Literals;
 using namespace chatterino;
 
+void resolveUserID(const QString &username,
+                   std::function<void(ExpectedStr<uint64_t>)> cb)
+{
+    getKickApi()->getChannelByName(
+        username, [username, cb = std::move(cb)](const auto &res) {
+            if (res)
+            {
+                cb(res->userID);
+                return;
+            }
+            if (!username.contains('_'))
+            {
+                cb(makeUnexpected(res.error()));
+                return;
+            }
+
+            auto slug = username;
+            slug.replace('_', '-');
+            getKickApi()->getChannelByName(
+                slug, [cb, firstError = res.error()](const auto &res) {
+                    if (res)
+                    {
+                        cb(res->userID);
+                        return;
+                    }
+                    cb(makeUnexpected(firstError));
+                });
+        });
+}
+
 template <typename Fn>
 void withUser(KickChannel *channel, const QString &userSpec,
               const QString &action, Fn fn, auto &&...args)
@@ -37,11 +67,11 @@ void withUser(KickChannel *channel, const QString &userSpec,
     }
 
     // otherwise resolve the user
-    getKickApi()->getChannelByName(
+    resolveUserID(
         userSpec,
         [weakChan = channel->weakFromThis(), onAction = std::move(onAction),
          userSpec, fn, ... args = std::forward<decltype(args)>(args)](
-            const auto &res) mutable {
+            const ExpectedStr<uint64_t> &res) mutable {
             auto chan = weakChan.lock();
             if (!chan)
             {
@@ -53,7 +83,7 @@ void withUser(KickChannel *channel, const QString &userSpec,
                                        u": " % res.error());
                 return;
             }
-            (getKickApi()->*fn)(chan->userID(), res->userID,
+            (getKickApi()->*fn)(chan->userID(), *res,
                                 std::forward<decltype(args)>(args)...,
                                 std::move(onAction));
         });
