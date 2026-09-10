@@ -2,9 +2,9 @@
 name: Check formatting
 
 on:
-  push:
-    branches:
-      - chatterino7
+  #push:
+  #  branches:
+  #    - chatterino7
   pull_request:
   merge_group:
 
