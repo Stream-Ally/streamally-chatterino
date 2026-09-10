@@ -108,6 +108,14 @@ CreateEmoteResult createEmote(const QJsonObject &activeEmote,
             : createTooltip(emoteName.string, author.string, isGlobal);
     auto imageSet = SeventvEmotes::createImageSet(emoteData, false);
 
+    const auto tagsArray = emoteData["tags"].toArray();
+    QStringList tags;
+    tags.reserve(tagsArray.size());
+    for (const auto tag : tagsArray)
+    {
+        tags.append(tag.toString());
+    }
+
     auto emote = Emote({
         emoteName,
         imageSet,
@@ -117,6 +125,7 @@ CreateEmoteResult createEmote(const QJsonObject &activeEmote,
         emoteId,
         author,
         makeConditionedOptional(aliasedName, baseEmoteName),
+        tags,
     });
 
     return {emote, emoteId, emoteName, !emote.images.getImage1()->isEmpty()};
@@ -206,7 +215,7 @@ std::shared_ptr<const EmoteMap> SeventvEmotes::globalEmotes() const
     return this->global_.get();
 }
 
-std::optional<EmotePtr> SeventvEmotes::globalEmote(const EmoteName &name) const
+std::optional<EmotePtr> SeventvEmotes::globalEmote(EmoteNameView name) const
 {
     auto emotes = this->global_.get();
     auto it = emotes->find(name);
@@ -235,9 +244,8 @@ void SeventvEmotes::loadGlobalEmotes()
 
     getApp()->getSeventvAPI()->getEmoteSet(
         u"global"_s,
-        [this](const auto &json) {
-            writeProviderEmotesCache("global", "seventv",
-                                     QJsonDocument(json).toJson());
+        [this](const auto &json, const auto &raw) {
+            writeProviderEmotesCache("global", "seventv", raw);
             QJsonArray parsedEmotes = json["emotes"].toArray();
 
             auto emoteMap = parseEmotes(parsedEmotes, true);
@@ -267,10 +275,9 @@ void SeventvEmotes::loadChannelEmotes(
 
     getApp()->getSeventvAPI()->getUserByTwitchID(
         channelId,
-        [callback = std::move(callback), channel, channelId,
-         manualRefresh](const auto &json) {
-            writeProviderEmotesCache(channelId, "seventv",
-                                     QJsonDocument(json).toJson());
+        [callback = std::move(callback), channel, channelId, manualRefresh](
+            const auto &json, const auto &raw) {
+            writeProviderEmotesCache(channelId, "seventv", raw);
             const auto emoteSet = json["emote_set"].toObject();
             const auto parsedEmotes = emoteSet["emotes"].toArray();
 
@@ -366,10 +373,10 @@ void SeventvEmotes::loadKickChannelEmotes(
 
     getApp()->getSeventvAPI()->getUserByKickID(
         userID,
-        [callback = std::move(callback), channel, manualRefresh,
-         userID](const auto &json) {
+        [callback = std::move(callback), channel, manualRefresh, userID](
+            const auto &json, const auto &raw) {
             writeProviderEmotesCache(u"kick." % QString::number(userID),
-                                     "seventv", QJsonDocument(json).toJson());
+                                     "seventv", raw);
             const auto emoteSet = json["emote_set"].toObject();
             const auto parsedEmotes = emoteSet["emotes"].toArray();
 
@@ -533,7 +540,8 @@ void SeventvEmotes::getEmoteSet(
 
     getApp()->getSeventvAPI()->getEmoteSet(
         emoteSetId,
-        [callback = std::move(successCallback), emoteSetId](const auto &json) {
+        [callback = std::move(successCallback), emoteSetId](
+            const auto &json, const auto & /*raw*/) {
             assert(!isAppAboutToQuit());
 
             auto parsedEmotes = json["emotes"].toArray();

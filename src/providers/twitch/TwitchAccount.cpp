@@ -384,7 +384,7 @@ void TwitchAccount::loadSeventvUserID()
 
     seventv->getUserByTwitchID(
         this->getUserId(),
-        [this, loadPersonalEmotes](const auto &json) {
+        [this, loadPersonalEmotes](const auto &json, const auto & /*raw*/) {
             const auto user = json["user"].toObject();
             const auto id = user["id"].toString();
             if (id.isEmpty())
@@ -436,7 +436,7 @@ void TwitchAccount::setEmotes(std::shared_ptr<const EmoteMap> emotes)
     *this->emotes_.access() = std::move(emotes);
 }
 
-std::optional<EmotePtr> TwitchAccount::twitchEmote(const EmoteName &name) const
+std::optional<EmotePtr> TwitchAccount::twitchEmote(EmoteNameView name) const
 {
     auto emotes = this->emotes_.accessConst();
     auto it = (*emotes)->find(name);
@@ -502,7 +502,7 @@ void TwitchAccount::reloadEmotes(void *caller)
                                 })
                       .first;
         }
-        set->second.emotes.emplace_back(std::move(emotePtr));
+        set->second.emotes.emplace(emotePtr->name, std::move(emotePtr));
     };
 
     auto userID = this->getUserId();
@@ -530,14 +530,6 @@ void TwitchAccount::reloadEmotes(void *caller)
                 qDebug(chatterinoTwitch).nospace()
                     << "Loaded " << emoteMap->size() << " Twitch emotes ("
                     << *nCalls << " requests)";
-
-                for (auto &[id, set] : *sets)
-                {
-                    std::ranges::sort(
-                        set.emotes, [](const auto &l, const auto &r) {
-                            return l->name.string < r->name.string;
-                        });
-                }
 
                 *this->emotes_.access() = std::move(emoteMap);
                 *this->emoteSets_.access() = std::move(sets);

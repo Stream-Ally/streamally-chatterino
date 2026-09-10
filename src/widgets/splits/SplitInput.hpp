@@ -19,6 +19,8 @@
 
 #include <memory>
 
+class QMimeData;
+
 namespace chatterino {
 
 class Split;
@@ -76,6 +78,8 @@ public:
      **/
     bool isHidden() const;
 
+    bool isInHistorySearch() const;
+
     /**
      * @brief Sets the text of this input
      *
@@ -97,6 +101,7 @@ public:
 
     pajlada::Signals::Signal<const QString &> textChanged;
     pajlada::Signals::NoArgSignal selectionChanged;
+    pajlada::Signals::NoArgSignal historySearchStateChanged;
 
 protected:
     void scaleChangedEvent(float scale_) override;
@@ -171,6 +176,9 @@ protected:
         LabelButton *sendButton;
         QLabel *sendWaitStatus;
         SvgButton *emoteButton;
+        QWidget *historySearchWrap;
+        QLineEdit *historySearchInput;
+        QLabel *historySearchLabel;
     } ui_;
 
     MessagePtr replyTarget_ = nullptr;
@@ -212,6 +220,49 @@ protected:
     InputHighlighter *inputHighlighter = nullptr;
 
     void updateFonts();
+
+    bool inHistorySearch = false;
+
+private:
+    void handleImagePaste(const QMimeData *source);
+
+    void startHistorySearch(bool backwards, bool loop);
+    void stopHistorySearchIfNecessary();
+
+    /// Search through all previous messages for `historySearchQuery`
+    void refreshHistorySearch(bool backwards, bool loop);
+
+    void cycleHistorySearch(bool backwards, bool loop);
+    void loopHistorySearchIfNeeded(bool backwards);
+
+    /// Show the currently selected message in the input box
+    void updateSelectedHistorySearchMatch();
+
+    void updateHistorySearchStatus(bool failed, const QString &message);
+
+    QString historySearchQuery;
+
+    struct HistorySearchResult {
+        /// Index of the message in `prevMsg_`
+        qsizetype messageIdx = 0;
+        QString message;
+    };
+    std::vector<HistorySearchResult> historySearchResults;
+
+    /// Index into `historySearchResults`
+    /// This might be out of bounds if there's no match.
+    qsizetype historySearchResultIndex = -1;
+
+    bool historySearchFailed = false;
+
+    bool lastHistorySearchBackwards = false;
+    bool lastHistorySearchLoop = false;
+
+    /// `prevIndex_` value before a history search was started.
+    ///
+    /// The history search modifies `prevIndex_`, but we need this anchor when
+    /// the user updates the query.
+    int prevIndexBeforeSearch = 0;
 
 private Q_SLOTS:
     void editTextChanged();

@@ -2,6 +2,7 @@
 
 #include "Application.hpp"
 #include "common/Args.hpp"
+#include "common/Modes.hpp"
 #include "singletons/Paths.hpp"
 #include "singletons/Updates.hpp"
 
@@ -315,8 +316,9 @@ public:
     }
 
     QTemporaryDir settingsDir;
-    Paths paths_;
     Args args_;
+    Modes modes_{args_};
+    Paths paths_ = {args_, modes_};
 };
 
 }  // namespace chatterino::mock

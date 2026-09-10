@@ -10,6 +10,7 @@
 #include "messages/MessageElement.hpp"
 #include "messages/MessageThread.hpp"
 #include "providers/bttv/BttvEmotes.hpp"
+#include "providers/chatterino/ChatterinoBadges.hpp"
 #include "providers/emoji/Emojis.hpp"
 #include "providers/ffz/FfzEmotes.hpp"
 #include "providers/kick/KickAccount.hpp"
@@ -420,6 +421,22 @@ void appendKickBadges(KickMessageBuilder &builder, BoostJsonArray badges)
     }
 }
 
+void appendKickV2Badges(KickMessageBuilder &builder, BoostJsonArray badges)
+{
+    // FIXME: respect order
+    for (auto badgeObj : badges)
+    {
+        bool selected = badgeObj["selected"].toBool();
+        if (!selected)
+        {
+            continue;
+        }
+        auto [emote, flag] = KickBadges::getV2Cached(badgeObj.toObject());
+
+        builder.emplace<BadgeElement>(emote, flag);
+    }
+}
+
 void appendSeventvBadge(KickMessageBuilder &builder)
 {
     auto badge = getApp()->getSeventvBadges()->getKickBadge(builder.senderID);
@@ -436,6 +453,19 @@ void appendStreamAllyBadges(KickMessageBuilder &builder)
     for (const auto badge : saBadges)
     {
         builder.emplace<BadgeElement>(badge->emote, MessageElementFlag::AlwaysShow);
+    }
+}
+
+void appendChatterinoBadge(KickMessageBuilder &builder)
+{
+    if (auto badge =
+            getApp()->getChatterinoBadges()->getKickBadge(builder.senderID))
+    {
+        builder.emplace<BadgeElement>(badge,
+                                      MessageElementFlag::BadgeChatterino);
+
+        /// e.g. "chatterino:Chatterino Top donator"
+        builder->externalBadges.emplace_back(badge->name.string);
     }
 }
 
@@ -545,7 +575,9 @@ std::pair<MessagePtrMut, HighlightAlert> KickMessageBuilder::makeChatMessage(
     builder.emplace<TimestampElement>(builder->serverReceivedTime.time());
     builder.emplace<TwitchModerationElement>();
 
+    appendKickV2Badges(builder, identity["badges_v2"].toArray());
     appendKickBadges(builder, identity["badges"].toArray());
+    appendChatterinoBadge(builder);
     appendStreamAllyBadges(builder);
     appendSeventvBadge(builder);
 

@@ -11,8 +11,6 @@
 #include <unordered_set>
 #include <unordered_map>
 
-QStringAlias(StreamAllyUserId);
-
 namespace chatterino {
 struct StreamAllyBadge;
 

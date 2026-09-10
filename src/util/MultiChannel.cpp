@@ -11,6 +11,7 @@
 #include <QUuid>
 #include <QVarLengthArray>
 
+#include <algorithm>
 #include <set>
 
 namespace {
@@ -148,7 +149,14 @@ MultiChannel::MultiChannel(std::span<const Spec> channels,
             }));
         connections.emplace_back(
             channel->messagesAddedAtStart.connect([this](const auto &msgs) {
-                this->addMessagesAtStart(msgs);
+                if (this->hasMessages())
+                {
+                    this->fillInMissingMessages(msgs);
+                }
+                else
+                {
+                    this->addMessagesAtStart(msgs);
+                }
             }));
         connections.emplace_back(channel->messageReplaced.connect(
             [this](size_t idx, const MessagePtr &prev,
@@ -297,22 +305,16 @@ bool MultiChannel::hasHighRateLimit() const
 
 bool MultiChannel::isLive() const
 {
-    const auto *active = this->activeChannel();
-    if (active)
-    {
-        return active->channel->isLive();
-    }
-    return false;
+    return std::ranges::any_of(this->channels_, [](const auto &c) {
+        return c.channel->isLive();
+    });
 }
 
 bool MultiChannel::isRerun() const
 {
-    const auto *active = this->activeChannel();
-    if (active)
-    {
-        return active->channel->isRerun();
-    }
-    return false;
+    return std::ranges::any_of(this->channels_, [](const auto &c) {
+        return c.channel->isRerun();
+    });
 }
 
 bool MultiChannel::shouldIgnoreHighlights() const
