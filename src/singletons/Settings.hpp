@@ -302,6 +302,8 @@ public:
                                           -0.5f};
     BoolSetting colorizeTabsAndSplits = {"/appearance/splitheader/colorizeTabs",
                                      true};
+    QStringSetting colorizeTabsAndSplitsKickColor = {"/appearance/splitheader/colorizeTabsKickColor", "#00E701"};
+    QStringSetting colorizeTabsAndSplitsTwitchColor = {"/appearance/splitheader/colorizeTabsTwitchColor", "#8956FB"};
     // BoolSetting useCustomWindowFrame = {"/appearance/useCustomWindowFrame",
     // false};
 

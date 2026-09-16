@@ -908,12 +908,28 @@ void GeneralPage::initLayout(GeneralPageView &layout)
     });
 
     layout.addNavigationSpacing();
+
+    // StreamAlly
     layout.addTitle("StreamAlly");
 
+    // SA - Tab colorization
+    layout.addSubtitle("Tab colorization");
     SettingWidget::checkbox("Colorize tabs and splits by platform", s.colorizeTabsAndSplits)
         ->setTooltip("Changes the line on top of tabs and splits for each platform. Twitch - purple, Kick - green")
         ->addTo(layout);
 
+    SettingWidget::colorButton("Twitch color", s.colorizeTabsAndSplitsTwitchColor)
+        ->addTo(layout);
+
+    SettingWidget::colorButton("Kick color", s.colorizeTabsAndSplitsKickColor)
+        ->addTo(layout);
+
+    layout.addButton("Revert color changes", []() {
+        getSettings()->colorizeTabsAndSplitsKickColor.resetToDefaultValue();
+        getSettings()->colorizeTabsAndSplitsTwitchColor.resetToDefaultValue();
+    });
+
+    // SA - Advanced
     layout.addSubtitle("Advanced");
     layout.addButton("Reload StreamAlly badges", []() {
         getApp()->getStreamAllyAPI()->FetchStreamAllyBadges();
