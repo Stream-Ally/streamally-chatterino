@@ -9,6 +9,7 @@
 #include "common/Version.hpp"
 #include "controllers/hotkeys/HotkeyCategory.hpp"
 #include "controllers/hotkeys/HotkeyController.hpp"
+#include "providers/streamally/StreamAllyAPI.h"
 #include "providers/twitch/TwitchChannel.hpp"
 #include "providers/twitch/TwitchIrcServer.hpp"
 #include "singletons/CrashHandler.hpp"
@@ -912,6 +913,11 @@ void GeneralPage::initLayout(GeneralPageView &layout)
     SettingWidget::checkbox("Colorize tabs and splits by platform", s.colorizeTabsAndSplits)
         ->setTooltip("Changes the line on top of tabs and splits for each platform. Twitch - purple, Kick - green")
         ->addTo(layout);
+
+    layout.addSubtitle("Advanced");
+    layout.addButton("Reload StreamAlly badges", []() {
+        getApp()->getStreamAllyAPI()->FetchStreamAllyBadges();
+    });
 
     layout.addNavigationSpacing();
     layout.addTitle("Beta");
