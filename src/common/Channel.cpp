@@ -95,6 +95,12 @@ const QString &Channel::getLocalizedName() const
     return this->getName();
 }
 
+bool Channel::hasNormalChat() const
+{
+    auto type = this->getType();
+    return type == Channel::Type::Twitch || type == Channel::Type::Kick;
+}
+
 bool Channel::isTwitchChannel() const
 {
     return this->type_ >= Type::Twitch && this->type_ < Type::TwitchEnd;

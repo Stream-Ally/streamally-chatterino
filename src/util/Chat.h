@@ -3,10 +3,11 @@
 //
 
 #pragma once
+#include "common/Channel.hpp"
+
 #include <QString>
 
 namespace chatterino {
-
 enum class Platform : uint8_t;
 }
 
@@ -14,4 +15,5 @@ struct Chat
 {
     QString channelName;
     chatterino::Platform platform;
+    chatterino::ChannelPtr channel;
 };

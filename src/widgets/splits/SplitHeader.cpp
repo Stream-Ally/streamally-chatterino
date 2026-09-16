@@ -1043,25 +1043,26 @@ void SplitHeader::updatePlatformLogo() const
 {
     auto channel = this->split_->getSelectedChannel();
 
-    if (channel->isTwitchChannel())
+    this->platformLogoButton_->hide();
+
+    if (channel->hasNormalChat())
     {
-        this->platformLogoButton_->setSource({
-            .dark = ":/twitch/twitch.svg",
-            .light = ":/twitch/twitch.svg",
-        });
-        this->platformLogoButton_->show();
-    }
-    else if (channel->isKickChannel())
-    {
-        this->platformLogoButton_->setSource({
-            .dark = ":/kick/kick.svg",
-            .light = ":/kick/kick.svg",
-        });
-        this->platformLogoButton_->show();
-    }
-    else
-    {
-        this->platformLogoButton_->hide();
+        if (channel->isTwitchChannel())
+        {
+            this->platformLogoButton_->setSource({
+                .dark = ":/twitch/twitch.svg",
+                .light = ":/twitch/twitch.svg",
+            });
+            this->platformLogoButton_->show();
+        }
+        else if (channel->isKickChannel())
+        {
+            this->platformLogoButton_->setSource({
+                .dark = ":/kick/kick.svg",
+                .light = ":/kick/kick.svg",
+            });
+            this->platformLogoButton_->show();
+        }
     }
 }
 
@@ -1293,10 +1294,12 @@ void SplitHeader::paintEvent(QPaintEvent * /*event*/)
     QColor border = this->theme->splits.header.border;
 
     // StreamAlly Addidtion
-    QColor twitchBorder = this->theme->splits.lineTwitch;
-    QColor kickBorder = this->theme->splits.lineKick;
+    QColor twitchBorder = QColor(getSettings()->colorizeTabsAndSplitsTwitchColor);
+    QColor kickBorder = QColor(getSettings()->colorizeTabsAndSplitsKickColor);
 
-    if (getSettings()->colorizeTabsAndSplits && channel->isTwitchOrKickChannel())
+    if (getSettings()->colorizeTabsAndSplits &&
+        channel->isTwitchOrKickChannel() &&
+        channel->hasNormalChat())
     {
         border = channel->isKickChannel() ? kickBorder : twitchBorder;
         //border.setAlpha(120);
@@ -1319,7 +1322,9 @@ void SplitHeader::paintEvent(QPaintEvent * /*event*/)
     painter.fillRect(this->rect(), background);
     painter.setPen(border);
 
-    if (getSettings()->colorizeTabsAndSplits && channel->isTwitchOrKickChannel())
+    if (getSettings()->colorizeTabsAndSplits &&
+        channel->isTwitchOrKickChannel() &&
+        channel->hasNormalChat())
     {
         painter.fillRect(0, 0, addButton_->isVisible() ? this->width() - addButton_->width() : this->width(), 2, border);
     }

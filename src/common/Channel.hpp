@@ -83,6 +83,7 @@ public:
     const QString &getName() const;
     virtual const QString &getDisplayName() const;
     virtual const QString &getLocalizedName() const;
+    bool hasNormalChat() const;
     bool isTwitchChannel() const;
     bool isKickChannel() const;
     bool isTwitchOrKickChannel() const;

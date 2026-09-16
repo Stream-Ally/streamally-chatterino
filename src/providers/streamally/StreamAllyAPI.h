@@ -46,8 +46,6 @@ class StreamAllyAPI : public QObject
     // Channel slug -> Sub badges
     std::unordered_map<QString, std::vector<KickSubBadge>> _kickStreamerSubBadges;
 
-    void FetchStreamAllyBadges();
-
     void TryFetchEnvironmentBadgeGrants(const QString environment);
 
     void AddSubjectsAndGrants(const QJsonObject &jsonRoot);
@@ -68,6 +66,8 @@ public:
     std::vector<StreamAllyBadge*> getBadges(MessagePlatform platform, const UserId &id, const QString &environment);
 
     const KickSubBadge* getKickChannelSubBadge(const QString &channel, int month);
+
+    void FetchStreamAllyBadges();
 };
 
 }

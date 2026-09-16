@@ -131,6 +131,10 @@ private:
 
     int normalTabWidthForHeight(int height) const;
 
+    bool shouldDrawPlatformIcons() const;
+    /// Width of the title as it is painted, including the platform icons
+    qreal titleContentWidth(const QFontMetricsF &metrics, float scale) const;
+
     bool shouldMessageHighlight(const ChannelView &channelViewSource) const;
 
     using HighlightSources =
@@ -156,7 +160,8 @@ private:
     QSvgRenderer *kickIcon_{};
     QSvgRenderer *kickIconDarker_{};
 
-    std::vector<Chat> chatsInTab;
+    std::vector<Chat> chatsInTab_;
+    bool showPlatformIcon_ = true;
 
     bool selected_{};
     bool mouseOver_{};

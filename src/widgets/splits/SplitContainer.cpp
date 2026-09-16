@@ -981,7 +981,9 @@ void SplitContainer::refreshTabTitle()
 
         if (channel->isTwitchOrKickChannel())
         {
-            chats.push_back({ channelName, channel->isKickChannel() ? Platform::Kick : Platform::Twitch });
+            chats.push_back({ channelName,
+                channel->isKickChannel() ? Platform::Kick : Platform::Twitch,
+                channel});
         }
         first = false;
     }

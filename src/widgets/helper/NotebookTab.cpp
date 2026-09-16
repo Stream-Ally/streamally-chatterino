@@ -26,6 +26,7 @@
 #include <boost/container_hash/hash.hpp>
 #include <QAbstractAnimation>
 #include <QApplication>
+#include <QCheckBox>
 #include <QDebug>
 #include <QDialogButtonBox>
 #include <QLabel>
@@ -75,6 +76,18 @@ float getCompactDivider(TabStyle tabStyle)
     }
 }
 
+int getPlatformIconSize(float scale)
+{
+    return int(9 * scale / getCompactDivider(getSettings()->tabStyle));
+}
+
+int getPlatformIconGap(float scale)
+{
+    return int(3 * scale);
+}
+
+const QString TITLE_SEPARATOR = QStringLiteral(", ");
+
 float getCompactReducer(TabStyle tabStyle)
 {
     switch (tabStyle)
@@ -120,6 +133,10 @@ NotebookTab::NotebookTab(Notebook *notebook)
 
     this->menu_.addAction(u"Rename Tab…"_s, this, [this]() {
         this->showRenameDialog();
+    });
+
+    this->menu_.addAction(u"Reset Tab's Title To Default"_s, this, [this]() {
+        this->resetCustomTitle();
     });
 
     // XXX: this doesn't update after changing hotkeys
@@ -366,6 +383,11 @@ void NotebookTab::showRenameDialog()
 
     vbox->addWidget(new QLabel("Name:"));
     vbox->addWidget(lineEdit);
+
+    auto *showPlatfromIconCheckBox = new QCheckBox("Show Platfrom Icon");
+    showPlatfromIconCheckBox->setChecked(showPlatformIcon_);
+    if (getSettings()->colorizeTabsAndSplits) vbox->addWidget(showPlatfromIconCheckBox);
+
     vbox->addStretch(1);
 
     auto *buttonBox =
@@ -396,8 +418,14 @@ void NotebookTab::showRenameDialog()
 
     if (dialog->exec() == QDialog::Accepted)
     {
+        this->showPlatformIcon_ = showPlatfromIconCheckBox->isChecked();
+
         QString newTitle = lineEdit->text();
         this->setCustomTitle(newTitle);
+
+        // The icons change the tab width even if the title stays the same
+        this->updateSize();
+        this->update();
     }
 }
 
@@ -429,7 +457,63 @@ int NotebookTab::normalTabWidth() const
 
 void NotebookTab::updateTitle(const std::vector<Chat> &chats)
 {
-    chatsInTab = chats;
+    chatsInTab_ = chats;
+
+    // The icons change the tab width even if the title stays the same
+    this->updateSize();
+    this->update();
+}
+
+bool NotebookTab::shouldDrawPlatformIcons() const
+{
+    // A custom title for multiple chats is drawn without icons
+    if (this->hasCustomTitle() && this->chatsInTab_.size() > 1)
+    {
+        return false;
+    }
+
+    // At least one chat has to be a normal channel and not /mentions, /live etc.
+    bool hasNormalChat = std::ranges::any_of(this->chatsInTab_,
+        [](const Chat &chat) {
+            return chat.channel->hasNormalChat();
+        });
+
+    return this->showPlatformIcon_ && hasNormalChat;
+}
+
+qreal NotebookTab::titleContentWidth(const QFontMetricsF &metrics,
+                                     float scale) const
+{
+    if (!this->shouldDrawPlatformIcons())
+    {
+        return metrics.horizontalAdvance(this->getTitle());
+    }
+
+    // Only normal chats have a platform icon
+    auto iconCount = std::count_if(
+        this->chatsInTab_.begin(), this->chatsInTab_.end(),
+        [](const Chat &chat) {
+            return chat.channel->hasNormalChat();
+        });
+
+    qreal width = static_cast<qreal>(iconCount) *
+                  (getPlatformIconSize(scale) + getPlatformIconGap(scale));
+
+    if (this->hasCustomTitle())
+    {
+        return width + metrics.horizontalAdvance(this->getCustomTitle());
+    }
+
+    for (size_t i = 0; i < this->chatsInTab_.size(); i++)
+    {
+        if (i > 0)
+        {
+            width += metrics.horizontalAdvance(TITLE_SEPARATOR);
+        }
+        width += metrics.horizontalAdvance(this->chatsInTab_[i].channelName);
+    }
+
+    return width;
 }
 
 int NotebookTab::normalTabWidthForHeight(int height) const
@@ -441,18 +525,16 @@ int NotebookTab::normalTabWidthForHeight(int height) const
         getApp()->getFonts()->getFontMetrics(FontStyle::UiTabs, scale);
 
     float compactDivider = getCompactDivider(getSettings()->tabStyle);
-    float iconBox = 14 * scale / compactDivider + 3 * scale;
+    qreal contentWidth = this->titleContentWidth(metrics, scale);
     if (this->hasXButton())
     {
-        width = static_cast<int>(metrics.horizontalAdvance(this->getTitle()) +
-                                 (32 / compactDivider * scale) +
-                                 chatsInTab.size() * iconBox);
+        width = static_cast<int>(
+            std::ceil(contentWidth + (32 / compactDivider * scale)));
     }
     else
     {
-        width = static_cast<int>(metrics.horizontalAdvance(this->getTitle()) +
-                                 (16 / compactDivider * scale) +
-                                 chatsInTab.size() * iconBox);
+        width = static_cast<int>(
+            std::ceil(contentWidth + (16 / compactDivider * scale)));
     }
 
     if (static_cast<float>(height) > 250 * scale)
@@ -949,23 +1031,17 @@ void NotebookTab::paintEvent(QPaintEvent *)
                                       : (windowFocused ? colors.line.regular
                                                        : colors.line.unfocused);
 
-    if (getSettings()->colorizeTabsAndSplits)
+    if (getSettings()->colorizeTabsAndSplits &&
+        this->highlightState_ != HighlightState::Highlighted)
     {
-        if (this->highlightState_ == HighlightState::Highlighted)
+        if (chatsInTab_.size() == 1)
         {
-            lineColor = this->theme->tabs.highlighted.line.regular;
-        }
-        else
-        {
-            if (!chatsInTab.empty())
+            if (chatsInTab_.at(0).channel->hasNormalChat())
             {
-                if (chatsInTab.size() == 1)
-                {
-                    if (chatsInTab.at(0).platform == Platform::Kick)
-                        lineColor = this->theme->splits.lineKick;
-                    else if (chatsInTab.at(0).platform == Platform::Twitch)
-                        lineColor = this->theme->splits.lineTwitch;
-                }
+                if (chatsInTab_.at(0).platform == Platform::Kick)
+                    lineColor = QColor(getSettings()->colorizeTabsAndSplitsKickColor);
+                else if (chatsInTab_.at(0).platform == Platform::Twitch)
+                    lineColor = QColor(getSettings()->colorizeTabsAndSplitsTwitchColor);
             }
         }
     }
@@ -1046,7 +1122,72 @@ void NotebookTab::paintEvent(QPaintEvent *)
         textRect.setRight(textRect.right() - this->height() / 2);
     }
 
-    if (this->chatsInTab.empty())
+    // When true, it will draw channel name with platform icon next to it.
+    if (this->shouldDrawPlatformIcons())
+    {
+        const int iconSize = getPlatformIconSize(scale);
+        const int iconGap = getPlatformIconGap(scale);
+
+        // Same width as the one used for the tab size, so the content fits.
+        // If it doesn't fit anyway, align it to the left like the plain title
+        qreal contentWidth = this->titleContentWidth(metrics, scale);
+        qreal x = textRect.left() +
+                  std::max(0.0, (textRect.width() - contentWidth) / 2.0);
+
+        const int iconY =
+            textRect.top() + (textRect.height() - iconSize) / 2 + iconSize / 8;
+
+        QTextOption opt(Qt::AlignLeft | Qt::AlignVCenter);
+        opt.setWrapMode(QTextOption::NoWrap);
+
+        auto drawText = [&](const QString &text) {
+            qreal textWidth = metrics.horizontalAdvance(text);
+            painter.drawText(
+                QRectF(x, textRect.top(), textWidth, textRect.height()), text,
+                opt);
+            x += textWidth;
+        };
+
+        // With a custom title, all icons are drawn first, followed by the title
+        for (size_t i = 0; i < this->chatsInTab_.size(); i++)
+        {
+            const auto &chat = this->chatsInTab_[i];
+
+            if (i > 0 && !this->hasCustomTitle())
+            {
+                drawText(TITLE_SEPARATOR);
+            }
+
+            // Channels like /live or /mentions don't have a platform icon
+            if (chat.channel->hasNormalChat())
+            {
+                QSvgRenderer *icon =
+                    this->isSelected()
+                        ? (chat.platform == Platform::Twitch ? this->twitchIcon_
+                                                             : this->kickIcon_)
+                        : (chat.platform == Platform::Twitch
+                               ? this->twitchIconDarker_
+                               : this->kickIconDarker_);
+                if (icon != nullptr)
+                {
+                    icon->render(&painter,
+                                 QRectF(x, iconY, iconSize, iconSize));
+                }
+                x += iconSize + iconGap;
+            }
+
+            if (!this->hasCustomTitle())
+            {
+                drawText(chat.channelName);
+            }
+        }
+
+        if (this->hasCustomTitle())
+        {
+            drawText(this->getCustomTitle());
+        }
+    }
+    else
     {
         int width = metrics.horizontalAdvance(this->getTitle());
         Qt::Alignment alignment = width > textRect.width()
@@ -1056,56 +1197,6 @@ void NotebookTab::paintEvent(QPaintEvent *)
         QTextOption option(alignment);
         option.setWrapMode(QTextOption::NoWrap);
         painter.drawText(textRect, this->getTitle(), option);
-    }
-    else
-    {
-        const int iconSize = int(9 * scale / compactDivider);
-        const int iconGap = int(3 * scale);
-        const QString separator = QStringLiteral(", ");
-
-        int contentWidth = int(metrics.horizontalAdvance(this->getTitle())) +
-                           chatsInTab.size() * (iconSize + iconGap);
-
-        float x = textRect.left() + (textRect.width() - contentWidth) / 2.0;
-
-        const int iconY =
-            textRect.top() + (textRect.height() - iconSize) / 2 + iconSize / 8;
-
-        QTextOption opt(Qt::AlignLeft | Qt::AlignVCenter);
-        opt.setWrapMode(QTextOption::NoWrap);
-
-        for (size_t i = 0; i < this->chatsInTab.size(); i++)
-        {
-            const auto &chat = this->chatsInTab[i];
-
-            // Skip the first separator
-            if (i > 0)
-            {
-                float sw = metrics.horizontalAdvance(separator);
-                painter.drawText(
-                    QRectF(x, textRect.top(), sw, textRect.height()), separator,
-                    opt);
-                x += sw;
-            }
-
-            QSvgRenderer *icon =
-                isSelected()
-                    ? (chat.platform == Platform::Twitch ? this->twitchIcon_
-                                                         : this->kickIcon_)
-                    : (chat.platform == Platform::Twitch
-                           ? this->twitchIconDarker_
-                           : this->kickIconDarker_);
-            if (icon != nullptr)
-            {
-                icon->render(&painter, QRectF(x, iconY, iconSize, iconSize));
-                x += iconSize + iconGap;
-            }
-
-            qreal tw = metrics.horizontalAdvance(chat.channelName);
-            painter.drawText(QRectF(x, textRect.top(), tw, textRect.height()),
-                             chat.channelName, opt);
-            x += tw;
-        }
     }
 
     // draw close x
