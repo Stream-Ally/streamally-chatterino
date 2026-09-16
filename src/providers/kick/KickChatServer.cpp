@@ -1,6 +1,8 @@
 #include "providers/kick/KickChatServer.hpp"
 
 #include "Application.hpp"
+#include "common/network/NetworkRequest.hpp"
+#include "common/network/NetworkResult.hpp"
 #include "common/QLogging.hpp"
 #include "controllers/accounts/AccountController.hpp"
 #include "messages/MessageBuilder.hpp"

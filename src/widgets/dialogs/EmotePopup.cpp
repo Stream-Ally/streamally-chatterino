@@ -928,6 +928,8 @@ void EmotePopup::reloadEmotes()
                       "7TV");
         }
 
+        addEmotes(*subChannel, *kickChannel_->getSubEmotes(), kickChannel_->slug());
+
         // personal
         const auto personalEmotes =
             getApp()->getSeventvPersonalEmotes()->getEmoteSetsForKickUser(

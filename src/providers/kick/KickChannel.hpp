@@ -120,6 +120,9 @@ public:
     bool hasHighRateLimit() const override;
     bool isLive() const override;
 
+    void reloadKickEmotes();
+    std::shared_ptr<const EmoteMap> getSubEmotes() const;
+
     struct StreamData {
         bool isLive = false;
         QString title;
@@ -214,6 +217,9 @@ private:
 
     bool isMod_ = false;
     bool isVip_ = false;
+
+    bool loadingSubEmotes_ = false;
+    std::shared_ptr<EmoteMap> subEmotes_;
 
     StreamData streamData_;
 

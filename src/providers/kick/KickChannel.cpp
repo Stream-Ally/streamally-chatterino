@@ -1,10 +1,12 @@
 #include "providers/kick/KickChannel.hpp"
 
 #include "Application.hpp"
+#include "common/network/NetworkRequest.hpp"
 #include "common/network/NetworkResult.hpp"
 #include "common/QLogging.hpp"
 #include "controllers/accounts/AccountController.hpp"
 #include "controllers/emotes/EmoteController.hpp"
+#include "KickEmotes.hpp"
 #include "messages/Emote.hpp"
 #include "messages/Link.hpp"
 #include "messages/Message.hpp"
@@ -28,6 +30,8 @@
 #include "util/FormatTime.hpp"
 #include "util/Helpers.hpp"
 #include "util/PostToThread.hpp"
+
+#include <QPointer>
 
 using namespace Qt::Literals;
 using namespace std::chrono_literals;
@@ -366,6 +370,82 @@ bool KickChannel::isLive() const
 {
     return this->streamData_.isLive;
 }
+void KickChannel::reloadKickEmotes()
+{
+    if (this->userID() == 0)
+    {
+        return;
+    }
+
+    NetworkRequest(QString("https://kick.com/emotes/%1").arg(this->slug()))
+        .onSuccess([this](NetworkResult result) {
+            constexpr QSize baseImgSize(36, 36);
+
+            const auto jsonSets = result.parseJsonArray();
+
+            QJsonArray jsonEmotes;
+            for (const auto &setVal : jsonSets)
+            {
+                const auto setObj = setVal.toObject();
+                if (static_cast<uint64_t>(setObj["user_id"].toInteger()) == this->userID())
+                {
+                    jsonEmotes = setObj["emotes"].toArray();
+                    break;
+                }
+            }
+
+            auto map = std::make_shared<EmoteMap>();
+            for (const auto &emoteVal : jsonEmotes)
+            {
+                const auto emoteObj = emoteVal.toObject();
+
+                bool subOnly = emoteObj["subscribers_only"].toBool();
+
+                if (subOnly)
+                {
+                    auto &kick = getApp()->getAccounts()->kick;
+
+                    if (kick.isLoggedIn())
+                    {
+                        KickApi::privateUserInChannelInfo(kick.current()->username(), this->slug(),
+                            [weak = this->weakFromThis(), emoteObj, map](const auto &res) {
+                                auto self = weak.lock();
+                                if (!self || !res)
+                                {
+                                    return;
+                                }
+
+                                bool isSubscribed = res->subscriptionMonths.has_value();
+
+                                if (isSubscribed)
+                                {
+                                    auto name = emoteObj["name"].toString();
+                                    auto id = QString::number(emoteObj["id"].toInteger());
+
+                                    auto emote = KickEmotes::emoteForID(id, name);
+                                    (*map)[emote->name] = emote;
+                                }
+                            });
+                    }
+                }
+            }
+
+            subEmotes_ = std::move(map);
+        })
+        .onError([this](NetworkResult result) {
+
+        })
+        .execute();
+}
+std::shared_ptr<const EmoteMap> KickChannel::getSubEmotes() const
+{
+    if (!subEmotes_)
+    {
+        return EMPTY_EMOTE_MAP;
+    }
+
+    return subEmotes_;
+}
 
 void KickChannel::updateStreamData(const KickChannelInfo &info)
 {
@@ -547,6 +627,9 @@ void KickChannel::resolveChannelInfo()
                 .userID = res->user.userID,
                 .channelID = res->channelID,
             });
+
+            self->reloadKickEmotes();
+
             auto oldDisplayName =
                 std::exchange(self->displayName_, res->user.username);
             if (oldDisplayName != self->displayName_)
