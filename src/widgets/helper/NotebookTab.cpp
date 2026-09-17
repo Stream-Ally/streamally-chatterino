@@ -34,6 +34,7 @@
 #include <QLineEdit>
 #include <QMimeData>
 #include <QPainter>
+#include <QPixmap>
 
 #include <algorithm>
 
@@ -88,6 +89,26 @@ int getPlatformIconGap(float scale)
 
 const QString TITLE_SEPARATOR = QStringLiteral(", ");
 
+QColor getLiveTabColor()
+{
+    const QColor color(getSettings()->liveTabColor.getValue());
+    return color.isValid() ? color : getTheme()->tabs.liveIndicator;
+}
+
+void drawTintedSvg(QPainter &painter, QSvgRenderer &renderer,
+                   const QRectF &rect, const QColor &color)
+{
+    QPixmap pixmap(rect.size().toSize());
+    pixmap.fill(Qt::transparent);
+
+    QPainter pixmapPainter(&pixmap);
+    renderer.render(&pixmapPainter, pixmap.rect());
+    pixmapPainter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+    pixmapPainter.fillRect(pixmap.rect(), color);
+
+    painter.drawPixmap(rect.topLeft(), pixmap);
+}
+
 float getCompactReducer(TabStyle tabStyle)
 {
     switch (tabStyle)
@@ -128,6 +149,15 @@ NotebookTab::NotebookTab(Notebook *notebook)
             this->update();
         },
         this->managedConnections_);
+    const auto repaint = [this] {
+        this->update();
+    };
+    getSettings()->colorizeLiveTabIcon.connect(repaint,
+                                               this->managedConnections_);
+    getSettings()->colorizeLiveTabText.connect(repaint,
+                                               this->managedConnections_);
+    getSettings()->liveTabColor.connect(
+        repaint, this->managedConnections_);
 
     this->setMouseTracking(true);
 
@@ -1072,6 +1102,8 @@ void NotebookTab::paintEvent(QPaintEvent *)
 
     painter.fillRect(lineRect, lineColor);
 
+    const auto liveColor = getLiveTabColor();
+
     // draw live indicator
     if ((this->isLive_ || this->isRerun_) && getSettings()->showTabLive)
     {
@@ -1079,8 +1111,8 @@ void NotebookTab::paintEvent(QPaintEvent *)
         QBrush b;
         if (this->isLive_)
         {
-            painter.setPen(this->theme->tabs.liveIndicator);
-            b.setColor(this->theme->tabs.liveIndicator);
+            painter.setPen(liveColor);
+            b.setColor(liveColor);
         }
         else
         {
@@ -1102,7 +1134,9 @@ void NotebookTab::paintEvent(QPaintEvent *)
     }
 
     // set the pen color
-    painter.setPen(colors.text);
+    painter.setPen(this->isLive_ && getSettings()->colorizeLiveTabText
+                       ? liveColor
+                       : colors.text);
 
     float compactDivider = getCompactDivider(getSettings()->tabStyle);
     // set area for text
@@ -1170,8 +1204,16 @@ void NotebookTab::paintEvent(QPaintEvent *)
                                : this->kickIconDarker_);
                 if (icon != nullptr)
                 {
-                    icon->render(&painter,
-                                 QRectF(x, iconY, iconSize, iconSize));
+                    const QRectF iconRect(x, iconY, iconSize, iconSize);
+                    if (this->isLive_ &&
+                        getSettings()->colorizeLiveTabIcon)
+                    {
+                        drawTintedSvg(painter, *icon, iconRect, liveColor);
+                    }
+                    else
+                    {
+                        icon->render(&painter, iconRect);
+                    }
                 }
                 x += iconSize + iconGap;
             }
@@ -1207,6 +1249,7 @@ void NotebookTab::paintEvent(QPaintEvent *)
         QRect xRect = this->getXRect();
         if (!xRect.isNull())
         {
+            painter.setPen(colors.text);
             painter.setBrush(QColor("#fff"));
 
             if (this->mouseOverX_)
