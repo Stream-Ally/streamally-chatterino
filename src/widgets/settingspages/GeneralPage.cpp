@@ -30,6 +30,7 @@
 #include <QFileDialog>
 #include <QFontDialog>
 #include <QFormLayout>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QMessageBox>
 #include <QPalette>
@@ -300,9 +301,29 @@ void GeneralPage::initLayout(GeneralPageView &layout)
             ->addTo(layout);
     }
 
-    SettingWidget::checkbox("Mark tabs with live channels", s.showTabLive)
-        ->setTooltip("Shows a red dot in the top right corner of a tab to "
-                     "indicate one of the channels in the tab is live.")
+    auto *liveTabIndicators = new QWidget;
+    auto *liveTabIndicatorsLayout = new QHBoxLayout(liveTabIndicators);
+    liveTabIndicatorsLayout->setContentsMargins(0, 4, 0, 4);
+    liveTabIndicatorsLayout->addWidget(new QLabel("Live tab indicators:"));
+    liveTabIndicatorsLayout->addStretch(1);
+    layout.addWidget(liveTabIndicators, {"live", "tab", "indicators"});
+
+    SettingWidget::checkbox("Show live indicator dot", s.showTabLive)
+        ->setTooltip("Shows a dot in the corner of tabs containing a live "
+                     "channel.")
+        ->addTo(layout);
+
+    SettingWidget::checkbox("Color live channel icons", s.colorizeLiveTabIcon)
+        ->setTooltip("Uses the live indicator color for platform icons in "
+                     "tabs containing a live channel.")
+        ->addTo(layout);
+
+    SettingWidget::checkbox("Color live channel names", s.colorizeLiveTabText)
+        ->setTooltip("Uses the live indicator color for text in tabs "
+                     "containing a live channel.")
+        ->addTo(layout);
+
+    SettingWidget::colorButton("Live indicator color", s.liveTabColor)
         ->addTo(layout);
 
     layout.addTitle("Chat");

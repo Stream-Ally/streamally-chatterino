@@ -272,6 +272,9 @@ public:
     FloatSetting boldScale = {"/appearance/boldScale", 63};
     BoolSetting showTabCloseButton = {"/appearance/showTabCloseButton", true};
     BoolSetting showTabLive = {"/appearance/showTabLiveButton", true};
+    BoolSetting colorizeLiveTabIcon = {"/appearance/colorizeLiveTabIcon", true};
+    BoolSetting colorizeLiveTabText = {"/appearance/colorizeLiveTabText", true};
+    QStringSetting liveTabColor = {"/appearance/liveTabColor", "#C94C4C"};
     EnumStringSetting<TabStyle> tabStyle = {
         "/appearance/tabStyle",
         TabStyle::Normal,
