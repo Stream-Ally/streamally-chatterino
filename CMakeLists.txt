@@ -261,6 +261,12 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(RapidJSON PajladaSignals PajladaSerialize PajladaSettings)
 
+# RapidJSON sets RULE_LAUNCH_COMPILE/RULE_LAUNCH_LINK to ccache globally if it finds it.
+# That wraps every rule (including llvm-rc via `cmake -E cmake_llvm_rc`), which breaks on Windows.
+# We already configure our own compiler launcher above, so undo it.
+set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "")
+set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK "")
+
 find_package(LRUCache REQUIRED)
 find_package(MagicEnum REQUIRED)
 find_package(Doxygen)
