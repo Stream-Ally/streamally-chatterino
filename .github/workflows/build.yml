@@ -272,7 +272,7 @@ jobs:
           save: ${{ github.event_name == 'push' }}
           key: sccache-build-${{ matrix.os }}-${{ runner.arch }}-${{ matrix.qt-version }}-${{ matrix.skip-crashpad }}
           restore-keys: |
-            sccache-build-${{ matrix.os }}-${{ runner.arch }}-${{ matrix.qt-version }}
+            #sccache-build-${{ matrix.os }}-${{ runner.arch }}-${{ matrix.qt-version }}
 
       - name: Cache conan packages (Windows/macOS)
         if: runner.os == 'Windows' || runner.os == 'macOS'
