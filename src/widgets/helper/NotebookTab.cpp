@@ -424,7 +424,7 @@ void NotebookTab::showRenameDialog()
         this->setCustomTitle(newTitle);
 
         // The icons change the tab width even if the title stays the same
-        this->updateSize();
+        this->refreshSize();
         this->update();
     }
 }
@@ -439,20 +439,7 @@ void NotebookTab::themeChangedEvent()
 
 void NotebookTab::growWidth(int width)
 {
-    if (this->growWidth_ != width)
-    {
-        this->growWidth_ = width;
-        this->updateSize();
-    }
-    else
-    {
-        this->growWidth_ = width;
-    }
-}
-
-int NotebookTab::normalTabWidth() const
-{
-    return this->normalTabWidthForHeight(this->height());
+    this->growWidth_ = width;
 }
 
 void NotebookTab::updateTitle(const std::vector<Chat> &chats)
@@ -460,7 +447,7 @@ void NotebookTab::updateTitle(const std::vector<Chat> &chats)
     chatsInTab_ = chats;
 
     // The icons change the tab width even if the title stays the same
-    this->updateSize();
+    this->refreshSize();
     this->update();
 }
 
@@ -549,11 +536,18 @@ int NotebookTab::normalTabWidthForHeight(int height) const
     return width;
 }
 
-void NotebookTab::updateSize()
+void NotebookTab::refreshAndCommitSize(bool notify)
+{
+    this->refreshSize();
+    this->commitSize(notify);
+}
+
+void NotebookTab::refreshSize()
 {
     float scale = this->scale();
     auto height = static_cast<int>(NOTEBOOK_TAB_HEIGHT * scale);
     int width = this->normalTabWidthForHeight(height);
+    this->computedMinimumSize = {width, height};
 
     if (width < this->growWidth_)
     {
@@ -565,6 +559,45 @@ void NotebookTab::updateSize()
         this->resize(width, height);
         this->notebook_->refresh();
     }
+}
+
+void NotebookTab::commitSize(bool notify)
+{
+    auto size = this->computedMinimumSize;
+    if (size.width() < this->growWidth_)
+    {
+        size.setWidth(this->growWidth_);
+    }
+
+    if (this->size() != size)
+    {
+        this->resize(size);
+        if (notify)
+        {
+            this->notebook_->refresh();
+        }
+    }
+}
+
+QSize NotebookTab::minimumTabSize() const
+{
+    return this->computedMinimumSize;
+}
+
+int NotebookTab::minimumTabWidth() const
+{
+    return this->computedMinimumSize.width();
+}
+
+void NotebookTab::queueMove(QPoint to, bool animated)
+{
+    this->queuedMove = to;
+    this->queuedMoveAnimated = animated;
+}
+
+void NotebookTab::commitMove()
+{
+    this->moveAnimated(this->queuedMove, this->queuedMoveAnimated);
 }
 
 const QString &NotebookTab::getCustomTitle() const
@@ -619,9 +652,9 @@ void NotebookTab::titleUpdated()
 {
     // Queue up save because: Tab title changed
     getApp()->getWindows()->queueSave();
-    this->notebook_->refresh();
-    this->updateSize();
+    this->refreshSize();
     this->update();
+    this->notebook_->refresh();
 }
 
 bool NotebookTab::isSelected() const
@@ -936,7 +969,7 @@ QRect NotebookTab::getDesiredRect() const
 
 void NotebookTab::tabSizeChanged()
 {
-    this->updateSize();
+    this->refreshAndCommitSize(true);
     this->update();
 }
 
@@ -1462,28 +1495,7 @@ void NotebookTab::mouseMoveEvent(QMouseEvent *event)
 
 void NotebookTab::wheelEvent(QWheelEvent *event)
 {
-    const auto defaultMouseDelta = 120;
-    const auto verticalDelta = event->angleDelta().y();
-    const auto selectTab = [this](int delta) {
-        delta > 0 ? this->notebook_->selectPreviousTab()
-                  : this->notebook_->selectNextTab();
-    };
-    // If it's true
-    // Then the user uses the trackpad or perhaps the most accurate mouse
-    // Which has small delta.
-    if (std::abs(verticalDelta) < defaultMouseDelta)
-    {
-        this->mouseWheelDelta_ += verticalDelta;
-        if (std::abs(this->mouseWheelDelta_) >= defaultMouseDelta)
-        {
-            selectTab(this->mouseWheelDelta_);
-            this->mouseWheelDelta_ = 0;
-        }
-    }
-    else
-    {
-        selectTab(verticalDelta);
-    }
+    this->notebook_->scrollTabs(event);
 }
 
 void NotebookTab::update()

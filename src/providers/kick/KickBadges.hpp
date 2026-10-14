@@ -15,6 +15,8 @@ public:
         std::string_view name);
     static ImageSet getSubGifterBadgeByGiftCount(int count);
 
+    static EmotePtr lookupSubGifter(unsigned amount);
+
     static std::pair<EmotePtr, MessageElementFlag> getV2Cached(
         BoostJsonObject badgeObj);
 };

@@ -19,6 +19,7 @@
 #include "singletons/Settings.hpp"
 #include "util/Helpers.hpp"
 
+#include <QImageReader>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -46,6 +47,24 @@ using namespace seventv::eventapi;
 const QString CHANNEL_HAS_NO_EMOTES("This channel has no 7TV channel emotes.");
 const QString EMOTE_LINK_FORMAT("https://7tv.app/emotes/%1");
 
+// This is non-const, but only used on the GUI thread
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+auto ALLOW_AVIF_IMAGES = []() {
+    static bool allow = true;
+    static bool registered = false;
+    if (!registered)
+    {
+        // We can't register this in the SeventvEmotes constructor,
+        // so we register the handler on demand.
+        getSettings()->allowAvifImages.connect([](bool setting) {
+            allow = setting && QImageReader::supportedImageFormats().contains(
+                                   QByteArrayLiteral("avif"));
+        });
+        registered = true;
+    }
+    return allow;
+};
+
 struct CreateEmoteResult {
     Emote emote;
     EmoteId id;
@@ -72,27 +91,43 @@ bool isZeroWidthActive(const QJsonObject &activeEmote)
     return flags.has(SeventvActiveEmoteFlag::ZeroWidth);
 }
 
-Tooltip createTooltip(const QString &name, const QString &author, bool isGlobal)
+QString kindToString(SeventvEmoteSetKind kind)
+{
+    switch (kind)
+    {
+        case SeventvEmoteSetKind::Global:
+            return QStringLiteral("Global");
+        case SeventvEmoteSetKind::Personal:
+            return QStringLiteral("Personal");
+        case SeventvEmoteSetKind::Channel:
+            return QStringLiteral("Channel");
+        default:
+            return QStringLiteral("");
+    }
+}
+
+Tooltip createTooltip(const QString &name, const QString &author,
+                      SeventvEmoteSetKind kind)
 {
     return Tooltip{QString("%1<br>%2 7TV Emote<br>By: %3")
-                       .arg(name.toHtmlEscaped(),
-                            isGlobal ? "Global" : "Channel",
+                       .arg(name.toHtmlEscaped(), kindToString(kind),
                             author.isEmpty() ? "&lt;deleted&gt;"
                                              : author.toHtmlEscaped())};
 }
 
 Tooltip createAliasedTooltip(const QString &name, const QString &baseName,
-                             const QString &author, bool isGlobal)
+                             const QString &author, SeventvEmoteSetKind kind)
 {
     return Tooltip{QString("%1<br>Alias of %2<br>%3 7TV Emote<br>By: %4")
                        .arg(name.toHtmlEscaped(), baseName.toHtmlEscaped(),
-                            isGlobal ? "Global" : "Channel",
+                            kindToString(kind),
                             author.isEmpty() ? "&lt;deleted&gt;"
                                              : author.toHtmlEscaped())};
 }
 
 CreateEmoteResult createEmote(const QJsonObject &activeEmote,
-                              const QJsonObject &emoteData, bool isGlobal)
+                              const QJsonObject &emoteData,
+                              SeventvEmoteSetKind kind)
 {
     auto emoteId = EmoteId{activeEmote["id"].toString()};
     auto emoteName = EmoteName{activeEmote["name"].toString()};
@@ -104,8 +139,8 @@ CreateEmoteResult createEmote(const QJsonObject &activeEmote,
     auto tooltip =
         aliasedName
             ? createAliasedTooltip(emoteName.string, baseEmoteName.string,
-                                   author.string, isGlobal)
-            : createTooltip(emoteName.string, author.string, isGlobal);
+                                   author.string, kind)
+            : createTooltip(emoteName.string, author.string, kind);
     auto imageSet = SeventvEmotes::createImageSet(emoteData, false);
 
     const auto tagsArray = emoteData["tags"].toArray();
@@ -131,33 +166,50 @@ CreateEmoteResult createEmote(const QJsonObject &activeEmote,
     return {emote, emoteId, emoteName, !emote.images.getImage1()->isEmpty()};
 }
 
-bool checkEmoteVisibility(const QJsonObject &emoteData)
+bool checkEmoteVisibility(const QJsonObject &emoteData,
+                          SeventvEmoteSetKind kind)
 {
     if (!emoteData["listed"].toBool() &&
         !getSettings()->showUnlistedSevenTVEmotes)
     {
         return false;
     }
+
+    // Only add allowed emotes
+    if (kind == SeventvEmoteSetKind::Personal &&
+        !emoteData["state"].toArray().contains("PERSONAL"))
+    {
+        return false;
+    }
+
     auto flags =
         SeventvEmoteFlags(SeventvEmoteFlag(emoteData["flags"].toInt()));
     return !flags.has(SeventvEmoteFlag::ContentTwitchDisallowed);
 }
 
 EmotePtr createUpdatedEmote(const EmotePtr &oldEmote,
-                            const EmoteUpdateDispatch &dispatch)
+                            const EmoteUpdateDispatch &dispatch,
+                            SeventvEmoteSetKind kind)
 {
     bool toNonAliased = oldEmote->baseName.has_value() &&
                         dispatch.emoteName == oldEmote->baseName->string;
 
     auto baseName = oldEmote->baseName.value_or(oldEmote->name);
-    auto emote = std::make_shared<const Emote>(Emote(
-        {EmoteName{dispatch.emoteName}, oldEmote->images,
-         toNonAliased
-             ? createTooltip(dispatch.emoteName, oldEmote->author.string, false)
-             : createAliasedTooltip(dispatch.emoteName, baseName.string,
-                                    oldEmote->author.string, false),
-         oldEmote->homePage, oldEmote->zeroWidth, oldEmote->id,
-         oldEmote->author, makeConditionedOptional(!toNonAliased, baseName)}));
+    auto emote = std::make_shared<const Emote>(Emote({
+        .name = EmoteName{dispatch.emoteName},
+        .images = oldEmote->images,
+        .tooltip = toNonAliased ? createTooltip(dispatch.emoteName,
+                                                oldEmote->author.string, kind)
+                                : createAliasedTooltip(
+                                      dispatch.emoteName, baseName.string,
+                                      oldEmote->author.string, kind),
+        .homePage = oldEmote->homePage,
+        .zeroWidth = oldEmote->zeroWidth,
+        .id = oldEmote->id,
+        .author = oldEmote->author,
+        .baseName = makeConditionedOptional(!toNonAliased, baseName),
+        .tags = oldEmote->tags,
+    }));
     return emote;
 }
 
@@ -170,21 +222,21 @@ using namespace seventv::detail;
 using namespace literals;
 
 EmoteMap seventv::detail::parseEmotes(const QJsonArray &emoteSetEmotes,
-                                      bool isGlobal)
+                                      SeventvEmoteSetKind kind)
 {
     auto emotes = EmoteMap();
 
-    for (const auto &activeEmoteJson : emoteSetEmotes)
+    for (const auto activeEmoteJson : emoteSetEmotes)
     {
         auto activeEmote = activeEmoteJson.toObject();
         auto emoteData = activeEmote["data"].toObject();
 
-        if (emoteData.empty() || !checkEmoteVisibility(emoteData))
+        if (emoteData.empty() || !checkEmoteVisibility(emoteData, kind))
         {
             continue;
         }
 
-        auto result = createEmote(activeEmote, emoteData, isGlobal);
+        auto result = createEmote(activeEmote, emoteData, kind);
         if (!result.hasImages)
         {
             // this shouldn't happen but if it does, it will crash,
@@ -236,7 +288,8 @@ void SeventvEmotes::loadGlobalEmotes()
     }
 
     readProviderEmotesCache("global", "seventv", [this](auto jsonDoc) {
-        auto emoteMap = parseEmotes(jsonDoc.object()["emotes"].toArray(), true);
+        auto emoteMap = parseEmotes(jsonDoc.object()["emotes"].toArray(),
+                                    SeventvEmoteSetKind::Global);
         this->setGlobalEmotes(std::make_shared<EmoteMap>(std::move(emoteMap)));
     });
 
@@ -248,7 +301,8 @@ void SeventvEmotes::loadGlobalEmotes()
             writeProviderEmotesCache("global", "seventv", raw);
             QJsonArray parsedEmotes = json["emotes"].toArray();
 
-            auto emoteMap = parseEmotes(parsedEmotes, true);
+            auto emoteMap =
+                parseEmotes(parsedEmotes, SeventvEmoteSetKind::Global);
             qCDebug(chatterinoSeventv)
                 << "Loaded" << emoteMap.size() << "7TV Global Emotes";
             this->setGlobalEmotes(
@@ -281,7 +335,8 @@ void SeventvEmotes::loadChannelEmotes(
             const auto emoteSet = json["emote_set"].toObject();
             const auto parsedEmotes = emoteSet["emotes"].toArray();
 
-            auto emoteMap = parseEmotes(parsedEmotes, {});
+            auto emoteMap =
+                parseEmotes(parsedEmotes, SeventvEmoteSetKind::Channel);
             bool hasEmotes = !emoteMap.empty();
 
             qCDebug(chatterinoSeventv)
@@ -381,7 +436,7 @@ void SeventvEmotes::loadKickChannelEmotes(
             const auto parsedEmotes = emoteSet["emotes"].toArray();
 
             auto emoteMap =
-                parseEmotes(parsedEmotes, {});
+                parseEmotes(parsedEmotes, SeventvEmoteSetKind::Channel);
             bool hasEmotes = !emoteMap.empty();
 
             qCDebug(chatterinoSeventv)
@@ -463,18 +518,18 @@ void SeventvEmotes::loadKickChannelEmotes(
 
 std::optional<EmotePtr> SeventvEmotes::addEmote(
     Atomic<std::shared_ptr<const EmoteMap>> &map,
-    const EmoteAddDispatch &dispatch)
+    const EmoteAddDispatch &dispatch, SeventvEmoteSetKind kind)
 {
     // Check for visibility first, so we don't copy the map.
     auto emoteData = dispatch.emoteJson["data"].toObject();
-    if (emoteData.empty() || !checkEmoteVisibility(emoteData))
+    if (emoteData.empty() || !checkEmoteVisibility(emoteData, kind))
     {
         return std::nullopt;
     }
 
     // This copies the map.
     EmoteMap updatedMap = *map.get();
-    auto result = createEmote(dispatch.emoteJson, emoteData, false);
+    auto result = createEmote(dispatch.emoteJson, emoteData, kind);
     if (!result.hasImages)
     {
         // Incoming emote didn't contain any images, abort
@@ -491,7 +546,7 @@ std::optional<EmotePtr> SeventvEmotes::addEmote(
 
 std::optional<EmotePtr> SeventvEmotes::updateEmote(
     Atomic<std::shared_ptr<const EmoteMap>> &map,
-    const EmoteUpdateDispatch &dispatch)
+    const EmoteUpdateDispatch &dispatch, SeventvEmoteSetKind kind)
 {
     auto oldMap = map.get();
     auto oldEmote = oldMap->findEmote(dispatch.emoteName, dispatch.emoteID);
@@ -504,7 +559,7 @@ std::optional<EmotePtr> SeventvEmotes::updateEmote(
     EmoteMap updatedMap = *map.get();
     updatedMap.erase(oldEmote->second->name);
 
-    auto emote = createUpdatedEmote(oldEmote->second, dispatch);
+    auto emote = createUpdatedEmote(oldEmote->second, dispatch, kind);
     updatedMap[emote->name] = emote;
     map.set(std::make_shared<EmoteMap>(std::move(updatedMap)));
 
@@ -546,7 +601,14 @@ void SeventvEmotes::getEmoteSet(
 
             auto parsedEmotes = json["emotes"].toArray();
 
-            auto emoteMap = parseEmotes(parsedEmotes, {});
+            auto kind = SeventvEmoteSetKind::Channel;
+            if (SeventvEmoteSetFlags(SeventvEmoteSetFlag(json["flags"].toInt()))
+                    .has(SeventvEmoteSetFlag::Personal))
+            {
+                kind = SeventvEmoteSetKind::Personal;
+            }
+
+            auto emoteMap = parseEmotes(parsedEmotes, kind);
 
             qCDebug(chatterinoSeventv) << "Loaded" << emoteMap.size()
                                        << "7TV Emotes from" << emoteSetId;
@@ -561,14 +623,36 @@ void SeventvEmotes::getEmoteSet(
 ImageSet SeventvEmotes::createImageSet(const QJsonObject &emoteData,
                                        bool useStatic)
 {
-    auto host = emoteData["host"].toObject();
+    const auto host = emoteData["host"].toObject();
     // "//cdn.7tv[...]"
     auto baseUrl = host["url"].toString();
-    auto files = host["files"].toArray();
+    const auto files = host["files"].toArray();
 
     std::array<ImagePtr, 4> sizes;
     double baseWidth = 0.0;
     size_t nextSize = 0;
+
+    auto targetFormat = [&] {
+        if (!ALLOW_AVIF_IMAGES() || files.empty())
+        {
+            return u"WEBP"_s;
+        }
+
+        // The fifth image is usually AVIF
+        if (files.size() >= 5 && files[4]["format"_L1].toString() == u"AVIF"_s)
+        {
+            return u"AVIF"_s;
+        }
+        for (auto f : files)
+        {
+            if (f["format"_L1].toString() == u"AVIF"_s)
+            {
+                return u"AVIF"_s;
+            }
+        }
+        // fallback
+        return u"WEBP"_s;
+    }();
 
     for (auto fileItem : files)
     {
@@ -578,9 +662,9 @@ ImageSet SeventvEmotes::createImageSet(const QJsonObject &emoteData,
         }
 
         auto file = fileItem.toObject();
-        if (file["format"].toString() != "WEBP")
+        if (file["format"].toString() != targetFormat)
         {
-            continue;  // We only use webp
+            continue;  // TODO: support fallbacks
         }
 
         double width = file["width"].toDouble();
